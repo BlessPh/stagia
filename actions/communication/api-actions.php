@@ -19,4 +19,4 @@ try{
     if($a==='reponse'){$rep=(string)($_POST['reponse']??'');if(!in_array($rep,['accepte','refuse','incertain'],true))fail('Réponse invalide.');$pdo->prepare('UPDATE participants_evenements SET statut_reponse=?,repondu_le=UTC_TIMESTAMP(6) WHERE evenement_calendrier_id=? AND utilisateur_id=?')->execute([$rep,(int)($_POST['evenement_id']??0),$u]);ok('Réponse enregistrée.');}
     if($a==='notification_lue'){$pdo->prepare('UPDATE notifications SET lue_le=COALESCE(lue_le,UTC_TIMESTAMP(6)) WHERE utilisateur_id=? AND id=?')->execute([$u,(int)($_POST['notification_id']??0)]);ok('Notification lue.');}
     fail('Action inconnue.');
-}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();error_log((string)$e);fail($e instanceof RuntimeException?$e->getMessage():'Une erreur technique empêche l’opération.',500);}
+}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();error_log((string)$e);fail($e instanceof RuntimeException&&!$e instanceof PDOException?$e->getMessage():'Une erreur technique empêche l’opération.',500);}
