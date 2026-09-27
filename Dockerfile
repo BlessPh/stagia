@@ -26,6 +26,8 @@ RUN apt-get update \
     && docker-php-ext-install -j$(nproc) \
         curl dom gd intl mbstring opcache pdo_mysql simplexml xml xmlreader xmlwriter zip \
     && a2enmod headers rewrite \
+    && (getent group 1000 > /dev/null || groupadd --gid 1000 render-secrets) \
+    && usermod --append --groups 1000 www-data \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html

@@ -53,6 +53,8 @@ try {
 
 } catch (Throwable $e) {
 
+    error_log('Connexion base de donnees: '.$e->getMessage());
+
     /* Le détail technique reste masqué pour ne pas exposer la configuration de la base. */
     die(
         "Erreur de connexion à la base de données."
