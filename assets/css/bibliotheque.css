@@ -1,0 +1,42 @@
+#bibliotheque{--bib-orange:#ff751f;color:#111;min-width:0}
+#bibliotheque button,#bibliotheque input,#bibliotheque select,#bibliotheque textarea{font:inherit}
+#bibliotheque button{cursor:pointer;border:1px solid #dedede;border-radius:10px;padding:10px 15px;background:white;color:#111}
+#bibliotheque button:hover{border-color:var(--bib-orange)}
+#bibliotheque button:disabled{opacity:.45;cursor:not-allowed}
+#bibliotheque :focus-visible{outline:3px solid #ff751f;outline-offset:3px}
+#bibliotheque .bib-primary{background:#ff751f;border-color:#ff751f;color:#000;font-weight:700}
+.bib-hero{display:flex;gap:24px;align-items:center;justify-content:space-between;padding:30px;border-radius:20px;background:#000;color:white;border-top:4px solid #ff751f}
+.bib-hero span{font-size:12px;letter-spacing:2px;color:#ff9b5d}.bib-hero h1{font-size:clamp(25px,3vw,38px);margin:10px 0}.bib-hero p{margin:0;color:#ddd}
+.bib-tabs{display:flex;gap:8px;overflow-x:auto;padding:20px 0;scrollbar-width:thin}
+.bib-tabs button{white-space:nowrap}#bibliotheque .bib-tabs button[aria-pressed=true]{background:#fff0e6;border-color:#ff751f}
+.bib-filtres{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding:20px;background:white;border:1px solid #eee;border-radius:16px}
+.bib-filtres label:first-child{flex:1;min-width:190px}
+#bibliotheque label{display:flex;flex-direction:column;gap:6px;font-weight:600}
+#bibliotheque input,#bibliotheque select,#bibliotheque textarea{border:1px solid #d8d8d8;background:white;color:#111;border-radius:9px;padding:10px;max-width:100%;width:100%}
+#bib-status{padding:15px 0;margin:0;min-height:48px}
+.bib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,275px),1fr));gap:18px}
+.bib-card{background:white;border:1px solid #e7e7e7;border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:12px;transition:transform .15s}
+.bib-card:hover{transform:translateY(-3px)}.bib-card h2{font-size:19px;overflow-wrap:anywhere;margin:0}
+.bib-card p{margin:0;overflow-wrap:anywhere}.bib-card small{color:#555}.bib-card-actions{display:flex;gap:8px;margin-top:auto}
+.bib-badge{font-size:12px;background:#fff0e6;padding:5px 10px;border-radius:7px;width:fit-content}
+.bib-pagination{display:flex;gap:15px;align-items:center;justify-content:center;padding:24px}
+#bib-dialog{border:1px solid #ddd;border-radius:18px;width:min(950px,94vw);max-height:90dvh;padding:0;color:#111;background:#fff}
+#bib-dialog::backdrop{background:rgba(0,0,0,.55)}
+.bib-dialog-header{position:sticky;top:0;background:white;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:16px 22px;border-bottom:1px solid #eee}
+.bib-dialog-header h2{font-size:22px;margin:0}
+#bib-dialog-body{padding:22px;overflow-wrap:anywhere}
+.bib-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.bib-full{grid-column:1/-1}
+.bib-form-actions{position:sticky;bottom:-22px;background:#fff;padding:16px 0;margin-top:15px;border-top:1px solid #eee}
+#bibliotheque .bib-check{display:flex;flex-direction:row;align-items:start;font-weight:400}
+#bibliotheque .bib-check input{width:auto;margin-top:5px}
+.bib-preview{width:100%;height:50dvh;border:1px solid #eee;border-radius:10px;margin-top:18px}
+.bib-details-actions{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}.bib-message{color:#a52712}
+.bib-empty{grid-column:1/-1;text-align:center;padding:60px 20px;background:white;border:1px dashed #ddd;border-radius:16px}
+.bib-summary{white-space:pre-wrap}.bib-meta{color:#555}
+.bib-validation-info{background:#fff5ee;border-left:4px solid #ff751f;padding:20px;border-radius:12px;margin-bottom:18px}
+.bib-validation-info h2{font-size:22px}.bib-compteurs{display:flex;flex-wrap:wrap;gap:12px}
+.bib-compteurs span{padding:10px 16px;background:white;border-radius:10px}.bib-history{margin-top:24px}
+.bib-history li{border-bottom:1px solid #eee;padding:12px 0}.bib-history small{display:block;color:#555}
+#bibliotheque [hidden]{display:none!important}
+@media(max-width:650px){.bib-hero{align-items:start;flex-direction:column;padding:22px}.bib-form-grid{grid-template-columns:1fr}.bib-filtres>*{width:100%}#bib-dialog-body{padding:16px}}
+@media(prefers-reduced-motion:reduce){.bib-card{transition:none}.bib-card:hover{transform:none}}

@@ -1,0 +1,8 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__.'/../../config/database.php';require_once __DIR__.'/../../includes/auth.php';require_once __DIR__.'/../../includes/communication-native.php';
+$utilisateur=(int)$_SESSION['user_id'];$fichier=(int)($_GET['fichier']??0);
+$q=$pdo->prepare("SELECT f.nom_original,f.nom_stockage,f.chemin_stockage,f.type_mime,f.taille_octets FROM fichiers f JOIN pieces_jointes_messages pj ON pj.fichier_id=f.id JOIN messages m ON m.id=pj.message_id JOIN participants_conversations pc ON pc.conversation_id=m.conversation_id AND pc.utilisateur_id=? AND pc.quitte_le IS NULL WHERE f.id=? AND f.archive_le IS NULL LIMIT 1");$q->execute([$utilisateur,$fichier]);$info=$q->fetch();
+if(!$info){http_response_code(404);exit('Fichier inaccessible.');}
+$racine=realpath(__DIR__.'/../..');$chemin=realpath(__DIR__.'/../../'.$info['chemin_stockage']);if(!$racine||!$chemin||!str_starts_with($chemin,$racine.DIRECTORY_SEPARATOR)||!is_file($chemin)){http_response_code(404);exit('Fichier introuvable.');}
+$nom=preg_replace('/[^\pL\pN._ -]+/u','_',basename((string)$info['nom_original']))?:'piece-jointe';$mime=(string)$info['type_mime'];$apercu=(string)($_GET['mode']??'')==='apercu'&&(str_starts_with($mime,'image/')||str_starts_with($mime,'text/')||$mime==='application/pdf');header('Content-Type: '.$mime);header('Content-Length: '.filesize($chemin));header("Content-Disposition: ".($apercu?'inline':'attachment')."; filename*=UTF-8''".rawurlencode($nom));header('X-Content-Type-Options: nosniff');header('Content-Security-Policy: sandbox');header('Cache-Control: private, no-store');readfile($chemin);

@@ -1,0 +1,43 @@
+{
+  "base_url": "http://localhost/stagia/api/v1",
+  "students": {
+    "a": { "identifiant": "ETUDIANT_TEST_A", "password": "MotDePasseTest!1" },
+    "b": { "identifiant": "ETUDIANT_TEST_B", "password": "MotDePasseTest!1" }
+  },
+  "authorization_cases": [
+    {
+      "name": "document personnel de B refusé à A",
+      "owner": "b",
+      "attacker": "a",
+      "method": "GET",
+      "path": "/student/personal-documents/REMPLACER_UUID_DOCUMENT_B/file",
+      "expected_statuses": [404],
+      "owner_must_access": true
+    },
+    {
+      "name": "conversation de B refusée à A",
+      "owner": "b",
+      "attacker": "a",
+      "method": "GET",
+      "path": "/student/conversations/REMPLACER_ULID_CONVERSATION_B/messages",
+      "expected_statuses": [404],
+      "owner_must_access": true
+    }
+  ],
+  "capacity_concurrency": {
+    "enabled": false,
+    "cleanup": true,
+    "payload_a": {
+      "campaign_id": 0,
+      "academic_enrollment_id": 0,
+      "participation_id": 0,
+      "motivation": "Test concurrence étudiant A"
+    },
+    "payload_b": {
+      "campaign_id": 0,
+      "academic_enrollment_id": 0,
+      "participation_id": 0,
+      "motivation": "Test concurrence étudiant B"
+    }
+  }
+}

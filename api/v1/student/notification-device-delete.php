@@ -1,0 +1,2 @@
+<?php
+require_once __DIR__.'/../api-auth.php';requireApiMethod('DELETE');$student=requireApiStudent($pdo);$uuid=trim((string)($_GET['uuid']??''));$q=$pdo->prepare('SELECT 1 FROM mobile_notification_devices WHERE identifiant_public=? AND utilisateur_id=?');$q->execute([$uuid,(int)$student['user_id']]);if(!$q->fetchColumn())apiResponse(false,'Appareil introuvable.',[],404);$pdo->prepare('UPDATE mobile_notification_devices SET actif=0 WHERE identifiant_public=? AND utilisateur_id=?')->execute([$uuid,(int)$student['user_id']]);apiResponse(true,'Appareil desactive.');

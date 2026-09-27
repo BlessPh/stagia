@@ -1,0 +1,84 @@
+Options -MultiViews
+RewriteEngine On
+
+RewriteRule ^login/?$ auth/login.php [L,QSA]
+RewriteRule ^logout/?$ auth/logout.php [L,QSA]
+RewriteRule ^refresh-token/?$ auth/refresh-token.php [L,QSA]
+RewriteRule ^forgot-password/?$ auth/forgot-password.php [L,QSA]
+RewriteRule ^reset-password/?$ auth/reset-password.php [L,QSA]
+RewriteRule ^me/?$ me.php [L,QSA]
+
+RewriteRule ^student/stage-options/?$ student/stage-options.php [L,QSA]
+RewriteRule ^student/dashboard/?$ student/dashboard.php [L,QSA]
+RewriteRule ^student/applications/?$ student/applications.php [L,QSA]
+RewriteRule ^student/reservations/([A-Fa-f0-9-]+)/confirm/?$ student/reservation-confirm.php?uuid=$1 [L,QSA]
+RewriteRule ^student/reservations/([A-Fa-f0-9-]+)/cancel/?$ student/reservation-cancel.php?uuid=$1 [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/reservations/?$ student/reserve.php [L,QSA]
+RewriteRule ^student/reservations/?$ student/reservations.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/payments/initiate/?$ student/payment-initiate.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/payments/sync/?$ student/payment-sync.php [L,QSA]
+RewriteRule ^student/payments/?$ student/payments.php [L,QSA]
+RewriteRule ^student/admissions/?$ student/admission.php [L,QSA]
+
+# Suivi et execution du stage
+RewriteRule ^student/stages/?$ student/stages.php [L,QSA]
+RewriteRule ^student/execution-context/?$ student/execution-context.php [L,QSA]
+RewriteRule ^student/attendance/?$ student/attendance.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^GET$
+RewriteRule ^student/attendance/context/?$ student/execution-context.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/attendance/arrival/?$ student/attendance-punch.php?action=ARRIVEE [L,QSA,NC]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/attendance/departure/?$ student/attendance-punch.php?action=DEPART [L,QSA,NC]
+
+RewriteCond %{REQUEST_METHOD} ^GET$
+RewriteRule ^student/logbook/?$ student/logbook.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/logbook/?$ student/logbook-save.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/logbook/([A-Fa-f0-9-]+)/submit/?$ student/logbook-submit.php?uuid=$1 [L,QSA]
+
+RewriteRule ^student/tasks/?$ student/tasks.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/tasks/([A-Fa-f0-9-]+)/(start|comment|complete)/?$ student/task-status.php?uuid=$1&action=$2 [L,QSA,NC]
+RewriteRule ^student/feedbacks/?$ student/feedbacks.php [L,QSA]
+RewriteRule ^student/evaluations/?$ student/evaluations.php [L,QSA]
+
+# Dossier academique et documentaire
+RewriteRule ^student/profile/?$ student/profile.php [L,QSA]
+RewriteRule ^student/enrollments/?$ student/enrollments.php [L,QSA]
+RewriteRule ^student/academic-path/?$ student/academic-path.php [L,QSA]
+RewriteRule ^student/notes/?$ student/notes.php [L,QSA]
+RewriteRule ^student/documents/?$ student/documents.php [L,QSA]
+RewriteRule ^student/academic-documents/?$ student/academic-documents.php [L,QSA]
+RewriteRule ^student/academic-documents/([0-9]+)/file/?$ student/academic-document-file.php?id=$1 [L,QSA]
+RewriteRule ^student/certificates/([A-Fa-f0-9-]+)/file/?$ student/certificate-file.php?uuid=$1 [L,QSA]
+RewriteRule ^student/conventions/?$ student/conventions.php [L,QSA]
+RewriteRule ^student/conventions/([A-Fa-f0-9-]+)/file/?$ student/convention-file.php?uuid=$1 [L,QSA]
+RewriteRule ^student/personal-documents/([A-Fa-f0-9-]+)/file/?$ student/personal-document-file.php?uuid=$1 [L,QSA]
+RewriteRule ^student/personal-documents/([A-Fa-f0-9-]+)/?$ student/personal-document-delete.php?uuid=$1 [L,QSA]
+RewriteRule ^student/personal-documents/?$ student/personal-documents.php [L,QSA]
+
+# Communication, calendrier et notifications de l'etudiant
+RewriteRule ^student/communication/contacts/?$ student/communication-contacts.php [L,QSA]
+RewriteRule ^student/notifications/counts/?$ student/notification-counts.php [L,QSA]
+RewriteRule ^student/notifications/stream/?$ student/notification-stream.php [L,QSA]
+RewriteRule ^student/notifications/preferences/?$ student/notification-preferences.php [L,QSA]
+RewriteRule ^student/notifications/devices/([0-9A-HJKMNP-TV-Z]{26})/?$ student/notification-device-delete.php?uuid=$1 [L,QSA,NC]
+RewriteRule ^student/notifications/devices/?$ student/notification-devices.php [L,QSA]
+RewriteRule ^student/notifications/([0-9A-HJKMNP-TV-Z]{26})/(read|archive)/?$ student/notification-action.php?uuid=$1&action=$2 [L,QSA,NC]
+RewriteRule ^student/notifications/?$ student/notifications.php [L,QSA]
+
+RewriteRule ^student/conversations/([0-9A-HJKMNP-TV-Z]{26})/messages/([0-9A-HJKMNP-TV-Z]{26})/attachments/([0-9A-HJKMNP-TV-Z]{26})/?$ student/message-attachment.php?conversation_uuid=$1&message_uuid=$2&file_uuid=$3 [L,QSA,NC]
+RewriteRule ^student/conversations/([0-9A-HJKMNP-TV-Z]{26})/messages/read/?$ student/conversation-read.php?uuid=$1 [L,QSA,NC]
+RewriteRule ^student/conversations/([0-9A-HJKMNP-TV-Z]{26})/messages/?$ student/conversation-messages.php?uuid=$1 [L,QSA,NC]
+RewriteRule ^student/conversations/([0-9A-HJKMNP-TV-Z]{26})/draft/?$ student/conversation-draft.php?uuid=$1 [L,QSA,NC]
+RewriteRule ^student/conversations/?$ student/conversations.php [L,QSA]
+
+RewriteRule ^student/communications/([0-9A-HJKMNP-TV-Z]{26})/read/?$ student/communication-read.php?uuid=$1 [L,QSA,NC]
+RewriteRule ^student/communications/?$ student/communications.php [L,QSA]
+RewriteRule ^student/calendar/([0-9A-HJKMNP-TV-Z]{26})/response/?$ student/calendar-response.php?uuid=$1 [L,QSA,NC]
+RewriteRule ^student/calendar/?$ student/calendar.php [L,QSA]

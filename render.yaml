@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: stagia-rdc
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health.php
+    envVars:
+      - key: APP_BASE_URL
+        value: ""
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL_CA
+        value: /etc/secrets/ca.pem
+      - key: DB_SSL_VERIFY_SERVER_CERT
+        value: "true"
+      - key: COMMUNICATION_CONFIG_KEY
+        generateValue: true

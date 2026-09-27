@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+config/ca.pem
+/stagia_recovery*.sql
+/stagia-aiven-*.sql
+/output/
+/storage/
+/tmp/
+/uploads/
+/vendor/
+*.bak
+*.bak-*
+*.before-*
+tests/api-student/config.local.json

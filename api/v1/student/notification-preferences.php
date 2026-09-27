@@ -1,0 +1,8 @@
+<?php
+require_once __DIR__.'/../api-auth.php';require_once __DIR__.'/../../../includes/student-communication-api.php';
+$student=requireApiStudent($pdo);$userId=(int)$student['user_id'];$method=strtoupper($_SERVER['REQUEST_METHOD']??'GET');
+try{
+    if($method==='GET'){$q=$pdo->prepare("SELECT type_evenement type,canal channel,active FROM preferences_notifications WHERE utilisateur_id=? AND canal IN ('email','sms','push') ORDER BY type_evenement,canal");$q->execute([$userId]);$items=$q->fetchAll(PDO::FETCH_ASSOC);foreach($items as &$i)$i['active']=(bool)$i['active'];unset($i);apiResponse(true,'',['items'=>$items,'defaults'=>['email'=>true,'sms'=>true,'push'=>true],'internal_notifications'=>true]);}
+    if(in_array($method,['PUT','PATCH'],true)){$input=apiInput();$type=trim((string)($input['type']??'*'));$channels=$input['channels']??[];if(!preg_match('/^(\*|[a-z0-9_.-]{1,100})$/i',$type)||!is_array($channels)||!$channels)apiResponse(false,'Preferences invalides.',[],422);$allowed=['email','sms','push'];$q=$pdo->prepare("INSERT INTO preferences_notifications(utilisateur_id,type_evenement,canal,active) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE active=VALUES(active)");foreach($channels as $channel=>$active){if(!in_array($channel,$allowed,true))apiResponse(false,'Canal invalide.',[],422);$q->execute([$userId,$type,$channel,(int)(bool)$active]);}apiResponse(true,'Preferences enregistrees.',['type'=>$type,'channels'=>$channels]);}
+    header('Allow: GET, PUT, PATCH');apiResponse(false,'Methode HTTP non autorisee.',[],405);
+}catch(Throwable $e){error_log('[API NOTIFICATION PREFS] '.$e->getMessage());apiResponse(false,'Impossible de gerer les preferences.',[],500);}

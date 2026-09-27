@@ -1,0 +1,3248 @@
+/* =========================================================
+   STAGIA-RDC | CHARTE : #ff751f • #000000 • #ffffff
+   ========================================================= */
+:root{
+    --orange:#ff751f;--orange-dark:#e85e00;--orange-soft:#fff1e8;
+    --black:#000;--white:#fff;--text:#383838;--muted:#747474;
+    --light:#f7f7f7;--border:#e7e7e7
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:"Segoe UI",Arial,sans-serif;color:var(--black);background:var(--white)}
+
+/* Institution */
+.institution-bar{padding:7px 0;background:linear-gradient(120deg,#000,#ff751f);color:#ddd;font-size:12px;border-bottom:3px solid var(--orange)}
+
+/* Navbar */
+.main-navbar {
+  min-height: 71px;
+  background: #000;
+  box-shadow: 0 4px 20px #00000010;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+/* Logo plus grand sans modifier la hauteur de la navbar */
+.navbar-brand{
+    height:71px;
+    display:flex;
+    align-items:center;
+    padding:0;
+    margin-right:55px;
+}
+.bg-primary {
+  --bs-bg-opacity: 1;
+  background-color: rgb(205, 94, 25) !important;
+}
+.brand-logo{
+    width:100px;
+    height:auto;
+    display:block;
+    transform:scale(2);
+    transform-origin:left center;
+}
+.btn-primary-stagia {
+  background: #612702;
+  border: 1px solid var(--orange);
+  color: var(--white);
+}
+.nav-link {
+  display: block;
+  padding: var(--bs-nav-link-padding-y) var(--bs-nav-link-padding-x);
+  font-size: var(--bs-nav-link-font-size);
+  font-weight: var(--bs-nav-link-font-weight);
+  color: #000;
+  text-decoration: none;
+  background: 0 0;
+  border: 0;
+  transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out;
+}
+.nav-link:hover,.nav-link.active{color:var(--orange)!important}
+.nav-link.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+
+}
+.btn-login{padding:10px 19px;border:1px solid var(--orange);border-radius:8px;color:var(--orange);font-weight:650}
+.btn-login:hover{background:var(--orange);border-color:var(--orange);color:var(--white)}
+
+/* Hero */
+.hero-section{position:relative;overflow:hidden;background:linear-gradient(135deg,#fff 0%,#fff 55%,var(--orange-soft) 100%)}
+.hero-section:before{content:"";position:absolute;width:430px;height:430px;border-radius:50%;background:#ff751f0d;left:-210px;top:-180px}
+.min-vh-75{min-height:680px}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;margin-bottom:22px;border:1px solid #ff751f33;border-radius:30px;background:var(--orange-soft);color:var(--orange);font-size:12px;font-weight:700}
+.hero-title{max-width:720px;font-size:clamp(38px,3vw,57px);line-height:1.08;letter-spacing:-2px;font-weight:800;color:var(--black)}
+.hero-title span{display:block;color:var(--orange)}
+.hero-description{max-width:640px;margin-top:24px;color:#606060;font-size:17px;line-height:1.75}
+.hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}
+.btn-primary-stagia,.btn-outline-stagia{padding:3px 16px;border-radius:9px;font-weight:650}
+.btn-primary-stagia {
+  background: linear-gradient(120deg,#000,#ff751f);;
+  border: 1px solid var(--orange);
+  color: var(--white);
+}
+.btn-primary-stagia:hover{background:var(--black);border-color:var(--black);color:var(--white)}
+.btn-outline-stagia{background:var(--white);border:1px solid #ccc;color:var(--black)}
+.btn-outline-stagia:hover{border-color:var(--orange);color:var(--orange)}
+.hero-info{display:flex;flex-wrap:wrap;gap:24px;margin-top:36px;color:#707070;font-size:13px}
+.hero-info div{display:flex;align-items:center;gap:7px}
+.hero-info i{color:var(--orange)}
+
+/* =========================================================
+   IMAGE HERO
+   ========================================================= */
+
+.hero-visual{
+    position:relative;
+    display:flex;
+    justify-content:center;
+    align-items:flex-end;
+    min-height:500px;
+}
+
+/* Cercle décoratif orange */
+.hero-shape{
+    position:absolute;
+    width:420px;
+    height:420px;
+    border-radius:50%;
+    background:#ff751f12;
+    border:1px solid #ff751f20;
+    z-index:0;
+}
+
+/* Image principale */
+.hero-image{
+    position:relative;
+    z-index:2;
+    width:100%;
+    max-width:480px;
+    max-height:540px;
+    object-fit:contain;
+    object-position:center bottom;
+    filter:drop-shadow(0 25px 35px #00000018);
+}
+
+/* Carte flottante */
+.hero-floating-card{
+    position:absolute;
+    left:-15px;
+    bottom:55px;
+    z-index:3;
+    display:flex;
+    align-items:center;
+    gap:11px;
+    padding:12px 16px;
+    background:#fff;
+    border:1px solid #ececec;
+    border-left:4px solid #ff751f;
+    border-radius:11px;
+    box-shadow:0 15px 35px #00000014;
+}
+
+.floating-icon{
+    width:40px;
+    height:40px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:9px;
+    background:#fff1e8;
+    color:#ff751f;
+    font-size:19px;
+}
+
+.hero-floating-card strong,
+.hero-floating-card small{
+    display:block;
+}
+
+.hero-floating-card strong{
+    color:#000;
+    font-size:12px;
+}
+
+.hero-floating-card small{
+    margin-top:2px;
+    color:#858585;
+    font-size:9px;
+}
+
+/* Responsive */
+@media(max-width:991px){
+    .hero-visual{
+        min-height:430px;
+        margin-top:20px;
+    }
+
+    .hero-image{
+        max-width:420px;
+    }
+
+    .hero-shape{
+        width:350px;
+        height:350px;
+    }
+
+    .hero-floating-card{
+        left:10%;
+    }
+}
+
+@media(max-width:576px){
+    .hero-visual{
+        min-height:350px;
+    }
+
+    .hero-image{
+        max-width:320px;
+        max-height:380px;
+    }
+
+    .hero-shape{
+        width:280px;
+        height:280px;
+    }
+
+    .hero-floating-card{
+        left:5px;
+        bottom:20px;
+        padding:9px 12px;
+    }
+}
+/* =========================================================
+   HERO SLIDER
+   ========================================================= */
+.hero-slider-box{
+    position:relative;
+    padding:20px;
+    border-radius:22px;
+    background:linear-gradient(135deg,#fff 0%,#fff8f3 100%);
+    border:1px solid #f1e3d8;
+    box-shadow:0 25px 60px rgba(0,0,0,.08);
+}
+
+#heroSlider{
+    border-radius:18px;
+    overflow:hidden;
+}
+
+.hero-slide-img{
+    width:100%;
+    height:540px;
+    object-fit:contain;
+    object-position:center;
+    display:block;
+    background:transparent;
+}
+
+/* Indicateurs */
+.hero-indicators{
+    margin-bottom:10px;
+}
+
+.hero-indicators button{
+    width:10px !important;
+    height:10px !important;
+    border-radius:50%;
+    border:0 !important;
+    background:#000 !important;
+    opacity:.25;
+}
+
+.hero-indicators .active{
+    background:#ff751f !important;
+    opacity:1;
+}
+
+/* Flèches */
+.hero-control{
+    width:42px;
+    height:42px;
+    top:50%;
+    transform:translateY(-50%);
+    background:rgba(0,0,0,.45);
+    border-radius:50%;
+    opacity:1;
+}
+
+.carousel-control-prev.hero-control{left:10px}
+.carousel-control-next.hero-control{right:10px}
+
+.hero-control:hover{
+    background:#ff751f;
+}
+
+/* Responsive */
+@media(max-width:991px){
+    .hero-slide-img{
+        height:420px;
+    }
+}
+
+@media(max-width:576px){
+    .hero-slider-box{
+        padding:12px;
+        border-radius:16px;
+    }
+
+    .hero-slide-img{
+        height:320px;
+    }
+
+    .hero-control{
+        width:36px;
+        height:36px;
+    }
+}
+
+        /* =========================================================
+   ECOSYSTEME STAGIA
+========================================================= */
+.ecosystem-section{
+    padding:27px 0 120px;
+    background:#fc66070f;
+}
+
+.ecosystem{
+    position:relative;
+    max-width:1050px;
+    height:610px;
+    margin:20px auto 0;
+}
+
+/* Cercle central */
+.ecosystem-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 230px;
+  height: 230px;
+  transform: translate(-50%,-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 13px solid #fd6707;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 20px 55px #fb6707;
+  z-index: 3;
+}
+
+.ecosystem-center:before,
+.ecosystem-center:after{
+    content:"";
+    position:absolute;
+    border-radius:50%;
+    border:1px dashed #ff751f35;
+}
+
+.ecosystem-center:before{
+    width:310px;
+    height:310px;
+}
+
+.ecosystem-center:after{
+    width:390px;
+    height:390px;
+    opacity:.5;
+}
+
+.ecosystem-logo{
+    width:125px;
+    margin-bottom:12px;
+    position:relative;
+    z-index:2;
+}
+
+.ecosystem-logo img{
+    width:100%;
+    height:auto;
+}
+
+.ecosystem-center strong{
+    position:relative;
+    z-index:2;
+    font-size:13px;
+    color:#000;
+}
+
+.ecosystem-center span{
+    position:relative;
+    z-index:2;
+    margin-top:4px;
+    font-size:9px;
+    color:#888;
+}
+
+/* Modules */
+.ecosystem-item{
+    position:absolute;
+    width:285px;
+    display:flex;
+    align-items:center;
+    gap:13px;
+    padding:15px 17px;
+    border:1px solid #fd6707;
+    border-radius:13px;
+    background:#fff;
+    box-shadow:0 10px 30px #00000008;
+    transition:.25s;
+    z-index:4;
+}
+
+.ecosystem-item:hover{
+    transform:translateY(-4px);
+    border-color:#ff751f70;
+    box-shadow:0 18px 35px #00000010;
+}
+
+.ecosystem-icon{
+    width:48px;
+    height:48px;
+    min-width:48px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:11px;
+    background:#fff0e6;
+    color:#ff751f;
+    font-size:21px;
+}
+
+.ecosystem-item h4{
+    margin:0 0 4px;
+    font-size:14px;
+    font-weight:750;
+    color:#111;
+}
+
+.ecosystem-item p{
+    margin:0;
+    color:#7b7b7b;
+    font-size:10px;
+    line-height:1.5;
+}
+
+/* Position des 6 modules */
+.item-1{left:0;top:40px}
+.item-2{right:0;top:40px}
+
+.item-3{left:0;top:250px}
+.item-4{right:0;top:250px}
+
+.item-5{left:110px;bottom:25px}
+.item-6{right:110px;bottom:25px}
+
+/* Petits traits de liaison */
+.ecosystem-item:after{
+    content:"";
+    position:absolute;
+    height:1px;
+    width:75px;
+    background:linear-gradient(90deg,#ff751f55,transparent);
+}
+
+.item-1:after,
+.item-3:after,
+.item-5:after{
+    right:-75px;
+}
+
+.item-2:after,
+.item-4:after,
+.item-6:after{
+    left:-75px;
+    transform:rotate(180deg);
+}
+
+/* Responsive */
+@media(max-width:991px){
+    .ecosystem{
+        height:auto;
+        display:grid;
+        grid-template-columns:repeat(2,1fr);
+        gap:15px;
+    }
+
+    .ecosystem-center{
+        position:relative;
+        left:auto;
+        top:auto;
+        transform:none;
+        width:100%;
+        height:180px;
+        border-radius:18px;
+        grid-column:1/-1;
+    }
+
+    .ecosystem-center:before,
+    .ecosystem-center:after,
+    .ecosystem-item:after{
+        display:none;
+    }
+
+    .ecosystem-item{
+        position:relative;
+        width:100%;
+        left:auto!important;
+        right:auto!important;
+        top:auto!important;
+        bottom:auto!important;
+    }
+}
+
+@media(max-width:576px){
+    .ecosystem-section{padding:65px 0}
+
+    .ecosystem{
+        grid-template-columns:1fr;
+    }
+
+    .ecosystem-center{
+        grid-column:auto;
+        height:155px;
+    }
+
+    .ecosystem-item{
+        padding:13px;
+    }
+}
+
+/* =========================================================
+   ANIMATION ECOSYSTEME STAGIA
+   N'affecte pas les autres blocs
+========================================================= */
+
+/* Le conteneur reste totalement immobile */
+.ecosystem{
+    position:relative;
+    isolation:isolate;
+}
+
+
+/* =========================================================
+   CERCLE CENTRAL
+========================================================= */
+
+.ecosystem-center{
+    position:absolute;
+    z-index:5;
+
+    /*
+     IMPORTANT :
+     on ne met aucune animation de déplacement ici.
+     Le bloc reste exactement à sa position actuelle.
+    */
+}
+
+
+/* =========================================================
+   PREMIER ANNEAU
+========================================================= */
+
+.ecosystem-center::before{
+    content:"";
+
+    position:absolute;
+
+    top:50%;
+    left:50%;
+
+    width:135%;
+    height:135%;
+
+    border-radius:50%;
+
+    border:1px dashed rgba(255,117,31,.28);
+
+    transform:translate(-50%,-50%);
+
+    pointer-events:none;
+
+    z-index:-1;
+
+    animation:stagiaRing1 18s linear infinite;
+}
+
+
+/* =========================================================
+   DEUXIEME ANNEAU
+========================================================= */
+
+.ecosystem-center::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 175%;
+  height: 175%;
+  border-radius: 50%;
+  border: 1px dashed rgb(0, 0, 0);
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+  z-index: -2;
+  animation: stagiaRing2 28s linear infinite;
+}
+
+
+/* =========================================================
+   ROTATION ANNEAU 1
+========================================================= */
+
+@keyframes stagiaRing1{
+
+    from{
+        transform:
+            translate(-50%,-50%)
+            rotate(0deg);
+    }
+
+    to{
+        transform:
+            translate(-50%,-50%)
+            rotate(360deg);
+    }
+
+}
+
+
+/* =========================================================
+   ROTATION ANNEAU 2
+========================================================= */
+
+@keyframes stagiaRing2{
+
+    from{
+        transform:
+            translate(-50%,-50%)
+            rotate(360deg);
+    }
+
+    to{
+        transform:
+            translate(-50%,-50%)
+            rotate(0deg);
+    }
+
+}
+
+
+/* =========================================================
+   HALO DU CENTRE
+========================================================= */
+
+.ecosystem-logo{
+    position:relative;
+
+    animation:stagiaLogoPulse 3s ease-in-out infinite;
+}
+
+
+/* Le logo grandit très légèrement,
+   mais ne change jamais de position */
+@keyframes stagiaLogoPulse{
+
+    0%,
+    100%{
+        transform:scale(1);
+    }
+
+    50%{
+        transform:scale(1.04);
+    }
+
+}
+
+
+/* =========================================================
+   PETITE RESPIRATION ORANGE
+========================================================= */
+
+.ecosystem-center{
+    animation:stagiaGlow 3.5s ease-in-out infinite;
+}
+
+
+@keyframes stagiaGlow{
+
+    0%,
+    100%{
+        box-shadow:
+            0 15px 30px rgba(255,117,31,.20),
+            0 0 0 10px rgba(255,117,31,.07);
+    }
+
+    50%{
+        box-shadow:
+            0 18px 40px rgba(255,117,31,.35),
+            0 0 0 16px rgba(255,117,31,.10);
+    }
+
+}
+.ecosystem-center strong {
+  position: relative;
+  z-index: 2;
+  font-size: 13px;
+  color: #000;
+  top: -25px;
+}
+
+.ecosystem-center span {
+  position: relative;
+  z-index: 2;
+  margin-top: -22px;
+  font-size: 9px;
+  color: #888;
+}
+
+/* =========================================================
+   AOS DES 6 BLOCS ECOSYSTEME
+   Ne modifie pas leur positionnement
+========================================================= */
+
+.ecosystem-item-aos{
+    width:100%;
+    height:100%;
+
+    display:flex;
+    align-items:center;
+    gap:14px;
+}
+
+/* =========================================================
+   QUI SOMMES-NOUS
+========================================================= */
+
+.about-section{
+    position:relative;
+    overflow:hidden;
+    padding:100px 0;
+    background:#fff;
+}
+
+.about-title{
+    max-width:620px;
+    margin:15px 0 22px;
+    color:#000;
+    font-size:42px;
+    line-height:1.15;
+    font-weight:800;
+}
+
+.about-title span{
+    color:#ff751f;
+}
+
+.about-text{
+    max-width:590px;
+    margin-bottom:14px;
+    color:#666;
+    font-size:15px;
+    line-height:1.8;
+}
+
+
+/* Points */
+.about-points{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    margin-top:30px;
+}
+
+.about-points>div{
+    display:flex;
+    align-items:center;
+    gap:14px;
+}
+
+.about-points>div>span{
+    width:45px;
+    height:45px;
+    flex:0 0 45px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    border-radius:12px;
+
+    background:#fff1e8;
+    color:#ff751f;
+
+    font-size:20px;
+}
+
+.about-points strong{
+    display:block;
+    color:#111;
+    font-size:14px;
+}
+
+.about-points small{
+    display:block;
+    margin-top:3px;
+    color:#888;
+    font-size:12px;
+}
+
+
+/* =========================================================
+   VISUEL
+========================================================= */
+
+.about-visual{
+    position:relative;
+
+    width:100%;
+    min-height:470px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+
+
+/* Cercles */
+.about-circle{
+    position:absolute;
+    border-radius:50%;
+}
+
+.about-circle-one{
+    width:390px;
+    height:390px;
+
+    border:1px dashed rgba(255,117,31,.25);
+}
+
+.about-circle-two{
+    width:310px;
+    height:310px;
+
+    background:#fff2e9;
+    border:1px solid rgba(255,117,31,.18);
+}
+
+
+/* Carte centrale */
+.about-main-card{
+    position:relative;
+    z-index:3;
+
+    width:245px;
+    height:245px;
+
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+
+    text-align:center;
+
+    background:#fff;
+
+    border-radius:50%;
+
+    box-shadow:
+        0 25px 55px rgba(0,0,0,.08),
+        0 12px 35px rgba(255,117,31,.18);
+}
+
+.about-logo{
+    width:125px;
+    height:auto;
+    margin-bottom:15px;
+}
+
+.about-main-card h3{
+    margin:0;
+    color:#000;
+    font-size:19px;
+    font-weight:800;
+}
+
+.about-main-card p{
+    margin:5px 0;
+    color:#ff751f;
+    font-size:11px;
+}
+
+.about-main-card>span{
+    color:#999;
+    font-size:9px;
+}
+
+.about-divider{
+    width:50px;
+    height:2px;
+    margin:10px 0;
+    background:#ff751f;
+}
+
+
+/* Petites cartes */
+.about-mini-card{
+    position:absolute;
+    z-index:5;
+
+    min-width:175px;
+
+    display:flex;
+    align-items:center;
+    gap:10px;
+
+    padding:12px 14px;
+
+    background:#fff;
+
+    border:1px solid #f0f0f0;
+    border-radius:12px;
+
+    box-shadow:0 12px 30px rgba(0,0,0,.07);
+}
+
+.about-mini-card i{
+    width:38px;
+    height:38px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    border-radius:9px;
+
+    background:#fff1e8;
+    color:#ff751f;
+
+    font-size:18px;
+}
+
+.about-mini-card strong{
+    display:block;
+    color:#111;
+    font-size:12px;
+}
+
+.about-mini-card small{
+    display:block;
+    color:#999;
+    font-size:9px;
+}
+
+
+/* Positions */
+.about-mini-card.card-one{
+    top:55px;
+    left:15px;
+}
+
+.about-mini-card.card-two{
+    right:0;
+    top:165px;
+}
+
+.about-mini-card.card-three{
+    left:45px;
+    bottom:40px;
+}
+
+/* =========================================================
+   PARTENAIRES
+========================================================= */
+
+.partners-section{
+    padding:100px 0;
+    background:#fff8f3;
+}
+
+.partners-grid{
+    display:grid;
+    grid-template-columns:repeat(6,1fr);
+    gap:16px;
+
+    margin-top:45px;
+}
+
+.partner-card{
+    min-height:135px;
+
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+
+    padding:20px;
+
+    background:#fff;
+
+    border:1px solid #eee;
+    border-radius:14px;
+
+    transition:.25s;
+}
+
+.partner-card:hover{
+    transform:translateY(-5px);
+
+    border-color:#ff751f;
+
+    box-shadow:0 15px 35px rgba(0,0,0,.07);
+}
+
+.partner-logo-box{
+    width:100%;
+    height:60px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+
+.partner-logo-box img{
+    max-width:115px;
+    max-height:55px;
+
+    object-fit:contain;
+
+    filter:grayscale(1);
+
+    opacity:.65;
+
+    transition:.25s;
+}
+
+.partner-card:hover img{
+    filter:grayscale(0);
+    opacity:1;
+}
+
+.partner-card>span{
+    margin-top:12px;
+
+    color:#777;
+
+    font-size:10px;
+
+    text-align:center;
+}
+
+
+/* Bas partenaires */
+.partners-bottom{
+    margin-top:35px;
+
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+
+    gap:30px;
+
+    padding:25px 30px;
+
+    background:#000;
+
+    border-radius:16px;
+
+    border-left:5px solid #ff751f;
+}
+
+.partners-bottom>div{
+    display:flex;
+    align-items:center;
+    gap:18px;
+}
+
+.partners-bottom>div>i{
+    width:50px;
+    height:50px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    flex:0 0 50px;
+
+    border-radius:12px;
+
+    background:#ff751f;
+
+    color:#fff;
+
+    font-size:23px;
+}
+
+.partners-bottom strong{
+    color:#fff;
+    font-size:15px;
+}
+
+.partners-bottom p{
+    margin:4px 0 0;
+
+    color:#aaa;
+
+    font-size:11px;
+}
+
+/* Carte des espaces */
+.portal-card{position:relative;padding:28px;background:#fffffff5;border:1px solid var(--border);border-top:4px solid var(--orange);border-radius:18px;box-shadow:0 28px 70px #00000017}
+.portal-card-header{display:flex;align-items:center;margin-bottom:1px}
+.portal-logo{width:105px;height:auto}
+.portal-card>p{margin-bottom:19px;color:#777;font-size:13px}
+.portal-access{display:flex;align-items:center;gap:13px;padding:12px;margin-bottom:6px;border:1px solid transparent;border-radius:11px;color:var(--black);text-decoration:none;transition:.2s}
+.portal-access:hover{background:var(--orange-soft);border-color:#ff751f35;transform:translateX(4px)}
+.portal-access strong{display:block;font-size:13px}
+.portal-access span{display:block;margin-top:2px;color:#888;font-size:10px}
+.access-icon{min-width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--orange-soft);color:var(--orange);font-size:18px}
+
+/* Sections */
+.section,.process-section{padding:20px 0}
+.section-heading{max-width:720px;margin:0 auto 50px}
+.section-label{color:var(--orange);font-size:11px;letter-spacing:2px;font-weight:800}
+.section-heading h2{margin-top:8px;font-size:36px;font-weight:800;color:var(--black)}
+.section-heading p{color:var(--muted);font-size:15px;line-height:1.7}
+
+/* Fonctionnalités */
+.feature-card{height:100%;padding:27px;background:var(--white);border:1px solid var(--border);border-radius:13px;transition:.25s}
+.feature-card:hover{transform:translateY(-6px);border-color:#ff751f55;box-shadow:0 18px 40px #00000010}
+.feature-icon{width:51px;height:51px;display:flex;align-items:center;justify-content:center;margin-bottom:19px;border-radius:11px;background:var(--orange-soft);color:var(--orange);font-size:22px}
+.feature-card h4{margin-bottom:9px;font-size:17px;font-weight:700}
+.feature-card p{margin:0;color:#727272;font-size:13px;line-height:1.7}
+
+/* Parcours */
+.process-section{background:var(--light)}
+.process-container{display:flex;align-items:center;justify-content:center}
+.process-item{width:180px;text-align:center;position:relative}
+.process-item>span{position:absolute;right:24px;top:-8px;color:var(--orange);font-size:10px;font-weight:800}
+.process-item>i{width:66px;height:66px;display:flex;align-items:center;justify-content:center;margin:0 auto 17px;background:var(--white);border:1px solid var(--border);border-radius:50%;color:var(--orange);font-size:26px;box-shadow:0 7px 20px #0000000c}
+.process-item h5{font-size:14px;font-weight:700}
+.process-item p{color:#828282;font-size:11px}
+.process-arrow{margin:0 5px;color:var(--orange)}
+
+/* Acteurs */
+.actors-section{background:var(--white)}
+.actors-title{max-width:570px;margin:13px 0 20px;font-size:38px;font-weight:800}
+.actors-text{max-width:580px;margin-bottom:27px;color:var(--muted);line-height:1.8}
+.actors-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}
+.actors-grid div{display:flex;align-items:center;gap:13px;padding:20px;background:var(--light);border:1px solid var(--border);border-radius:11px;font-weight:650}
+.actors-grid i{color:var(--orange);font-size:21px}
+
+/* CTA */
+.cta-section{padding:20px 0 90px}
+.cta-container{display:flex;align-items:center;justify-content:space-between;gap:30px;padding:42px 48px;border-radius:18px;background:var(--black);color:var(--white);border-left:6px solid var(--orange)}
+.cta-container span{color:var(--orange);font-size:10px;letter-spacing:2px;font-weight:700}
+.cta-container h2{margin:8px 0;font-size:30px;font-weight:750}
+.cta-container p{margin:0;color:#bbb}
+.btn-cta{padding:12px 22px;background:var(--orange);border:none;color:var(--white);font-weight:700}
+.btn-cta:hover{background:var(--white);color:var(--black)}
+
+/* Footer */
+.footer{padding:60px 0 24px;background:var(--black);color:#bbb;border-top:4px solid var(--orange)}
+.footer-logo-box{display:inline-block;padding:7px 10px;background:var(--white);border-radius:8px}
+.footer-logo{width:135px;height:auto}
+.footer h6{color:var(--white)}
+.footer p{font-size:12px;line-height:1.7}
+.footer a{display:block;margin-bottom:8px;color:#bbb;text-decoration:none;font-size:12px}
+.footer a:hover{color:var(--orange)}
+.footer hr{margin:36px 0 20px;border-color:#ffffff22}
+.footer-bottom{display:flex;justify-content:space-between;gap:15px;color:#777;font-size:10px}
+
+/* Responsive */
+@media(max-width:991px){
+    .min-vh-75{min-height:auto;padding:70px 0}
+    .portal-card{margin-top:20px}
+    .process-container{flex-direction:column;gap:8px}
+    .process-arrow{transform:rotate(90deg)}
+    .cta-container{flex-direction:column;align-items:flex-start}
+}
+@media(max-width:576px){
+    .brand-logo{width:125px}
+    .hero-title{font-size:38px;letter-spacing:-1px}
+    .hero-description{font-size:15px}
+    .hero-actions a{width:100%}
+    .hero-info{flex-direction:column;gap:9px}
+    .section,.process-section{padding:65px 0}
+    .section-heading h2{font-size:28px}
+    .actors-title{font-size:29px}
+    .actors-grid{grid-template-columns:1fr}
+    .cta-container{padding:32px 24px}
+    .footer-bottom{flex-direction:column}
+}
+
+@media(max-width: 576px) {
+
+    .hero-title {
+        font-size: 38px;
+    }
+
+    .hero-description {
+        font-size: 16px;
+    }
+
+    .hero-actions a {
+        width: 100%;
+        text-align: center;
+    }
+
+    .hero-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .section {
+        padding: 70px 0;
+    }
+
+    .section-heading h2 {
+        font-size: 28px;
+    }
+
+    .actors-title {
+        font-size: 29px;
+    }
+
+    .actors-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cta-container {
+        padding: 35px 25px;
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+    }
+
+}
+
+/* =========================================================
+   CONTACT STAGIA-RDC
+========================================================= */
+
+.contact-section{
+    padding:20px 0;
+    background:#f8f8f8;
+}
+
+.contact-wrapper{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:55px;
+    align-items:center;
+}
+
+/* IMAGE GAUCHE */
+.contact-visual {
+  position: relative;
+  min-height: 435px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 22px;
+  background: linear-gradient(145deg,#fff 0%,#fff3eb 100%);
+}
+
+.contact-shape{
+    position:absolute;
+    width:380px;
+    height:380px;
+    border-radius:50%;
+    background:#ff751f14;
+    border:1px solid #ff751f25;
+    top:85px;
+}
+
+.contact-image {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 470px;
+  max-height: 530px;
+  object-fit: contain;
+  object-position: center bottom;
+  margin-top: 128px;
+  top: -115px;
+}
+
+/* Badge */
+.contact-badge{
+    position:absolute;
+    z-index:3;
+    left:25px;
+    bottom:25px;
+    display:flex;
+    align-items:center;
+    gap:11px;
+    padding:12px 15px;
+    background:#fff;
+    border:1px solid #eee;
+    border-left:4px solid #ff751f;
+    border-radius:10px;
+    box-shadow:0 15px 30px #00000012;
+}
+
+.contact-badge>span{
+    width:40px;
+    height:40px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:9px;
+    background:#fff0e6;
+    color:#ff751f;
+    font-size:18px;
+}
+
+.contact-badge strong,
+.contact-badge small{
+    display:block;
+}
+
+.contact-badge strong{
+    color:#111;
+    font-size:11px;
+}
+
+.contact-badge small{
+    color:#888;
+    font-size:9px;
+}
+
+/* CONTENU DROITE */
+.contact-content{
+    max-width:560px;
+}
+
+.contact-label{
+    color:#ff751f;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:2px;
+}
+
+.contact-content h2 {
+  margin: 7px 0 15px;
+  color: #000;
+  font-size: 29px;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.contact-content h2 span{
+    color:#ff751f;
+}
+
+.contact-description{
+    margin-bottom:25px;
+    color:#707070;
+    font-size:13px;
+    line-height:1.7;
+}
+
+/* FORM */
+.contact-form .form-label{
+    margin-bottom:5px;
+    color:#444;
+    font-size:10px;
+    font-weight:650;
+}
+
+.contact-input{
+    min-height:46px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:0 14px;
+    background:#fff;
+    border:1px solid #ddd;
+    border-radius:9px;
+    transition:.2s;
+}
+
+.contact-input:focus-within{
+    border-color:#ff751f;
+    box-shadow:0 0 0 3px #ff751f12;
+}
+
+.contact-input i{
+    color:#ff751f;
+    font-size:15px;
+}
+
+.contact-input input,
+.contact-input textarea{
+    width:100%;
+    border:0;
+    outline:none;
+    background:transparent;
+    color:#222;
+    font-size:12px;
+}
+
+.contact-input input{
+    height:44px;
+}
+
+.contact-textarea{
+    align-items:flex-start;
+    padding-top:13px;
+}
+
+.contact-textarea textarea{
+    resize:none;
+}
+
+/* BOUTON */
+.btn-contact{
+    width:100%;
+    min-height:48px;
+    border:0;
+    border-radius:9px;
+    background:#ff751f;
+    color:#fff;
+    font-size:12px;
+    font-weight:700;
+    transition:.2s;
+}
+
+.btn-contact:hover{
+    background:#000;
+    transform:translateY(-1px);
+}
+
+/* RESPONSIVE */
+@media(max-width:991px){
+    .contact-wrapper{
+        grid-template-columns:1fr;
+    }
+
+    .contact-content{
+        max-width:100%;
+    }
+
+    .contact-visual{
+        min-height:450px;
+    }
+
+    .contact-image{
+        max-height:440px;
+    }
+}
+
+@media(max-width:576px){
+    .contact-section{
+        padding:65px 0;
+    }
+
+    .contact-visual{
+        min-height:350px;
+    }
+
+    .contact-image{
+        max-width:320px;
+        max-height:340px;
+    }
+
+    .contact-shape{
+        width:270px;
+        height:270px;
+    }
+
+    .contact-content h2{
+        font-size:32px;
+    }
+
+    .contact-badge{
+        left:12px;
+        bottom:12px;
+    }
+}
+
+/* ==========================================================
+   PAGE CONNEXION
+   ========================================================== */
+/* =========================================================
+   LOGIN STAGIA-RDC
+   Charte : Orange #ff751f • Noir • Blanc
+   ========================================================= */
+/* =========================================================
+   STAGIA-RDC - PAGE CONNEXION
+   Orange : #ff751f
+   Noir   : #000000
+   Blanc  : #ffffff
+========================================================= */
+
+.login-page{
+    min-height:100vh;
+    background:#f8f8f8;
+}
+
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.login-page .login-header{
+    height:86px;
+    display:flex;
+    align-items:center;
+    background:#000;
+    border-top:4px solid #ff751f;
+    border-bottom:1px solid #e9e9e9;
+}
+
+.login-page .login-brand{
+    display:flex;
+    align-items:center;
+    gap:15px;
+    text-decoration:none;
+}
+
+
+/* Logo réel */
+.login-page .login-brand-logo{
+    width:186px;
+    height:auto;
+    display:block;
+}
+
+
+/* Texte à côté du logo */
+.login-page .login-brand-text{
+    display:flex;
+    align-items:baseline;
+    gap:7px;
+}
+
+.login-page .login-brand-text strong{
+    color:#000;
+    font-size:25px;
+    font-weight:800;
+    line-height:1;
+}
+
+.login-page .login-brand-text small{
+    color:#ff751f;
+    font-size:14px;
+    font-weight:500;
+}
+
+
+/* Retour */
+.login-page .btn-back{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:10px 16px;
+    border:1px solid #ddd;
+    border-radius:8px;
+    background:#fff;
+    color:#444;
+    font-size:12px;
+    font-weight:600;
+    text-decoration:none;
+    transition:.2s;
+}
+
+.login-page .btn-back:hover{
+    background:#fff7f2;
+    border-color:#ff751f;
+    color:#ff751f;
+}
+
+
+/* =========================================================
+   CONTENU
+========================================================= */
+
+.login-page .login-main{
+    position:relative;
+    overflow:hidden;
+
+    background:
+        radial-gradient(
+            circle at 10% 15%,
+            rgba(255,117,31,.07),
+            transparent 32%
+        ),
+        linear-gradient(
+            135deg,
+            #fff 0%,
+            #fafafa 55%,
+            #fff5ee 100%
+        );
+}
+
+.login-page .min-vh-login{
+    min-height:calc(100vh - 145px);
+    padding:45px 0;
+}
+
+
+/* =========================================================
+   PARTIE GAUCHE
+========================================================= */
+
+.login-page .login-presentation{
+    position:relative;
+    min-height:600px;
+    overflow:hidden;
+    border-radius:22px;
+
+    background:
+        url("../img/login-bg.png")
+        center center / cover
+        no-repeat;
+
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+}
+
+
+/* Overlay */
+.login-page .login-presentation-overlay{
+    position:absolute;
+    inset:0;
+    z-index:1;
+
+    background:
+        linear-gradient(
+            90deg,
+            rgba(255,255,255,.97) 0%,
+            rgba(255,255,255,.91) 35%,
+            rgba(255,255,255,.60) 58%,
+            rgba(255,255,255,.10) 100%
+        );
+}
+
+
+/* Contenu au-dessus de l'image */
+.login-page .login-presentation-content{
+    position:relative;
+    z-index:2;
+    max-width:520px;
+    padding:65px 35px;
+}
+
+
+/* Badge */
+.login-page .login-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+
+    margin-bottom:24px;
+    padding:7px 14px;
+
+    border:1px solid rgba(255,117,31,.25);
+    border-radius:30px;
+
+    background:#fff0e6;
+    color:#ff751f;
+
+    font-size:11px;
+    font-weight:700;
+}
+
+
+/* Grand titre */
+.login-page .login-presentation h1{
+    max-width:520px;
+    margin:0 0 20px;
+
+    color:#000;
+
+    font-size:55px;
+    line-height:1.04;
+    letter-spacing:-2px;
+    font-weight:850;
+}
+
+.login-page .login-presentation h1 span{
+    display:block;
+    color:#ff751f;
+}
+
+
+/* Description */
+.login-page .login-presentation-content>p{
+    max-width:490px;
+    margin:0;
+
+    color:#565656;
+
+    font-size:16px;
+    line-height:1.75;
+}
+
+
+/* =========================================================
+   AVANTAGES
+========================================================= */
+
+.login-page .login-benefits{
+    display:flex;
+    flex-direction:column;
+    gap:15px;
+    margin-top:35px;
+}
+
+.login-page .login-benefits>div{
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+
+.login-page .login-benefits>div>span{
+    width:43px;
+    height:43px;
+
+    flex:0 0 43px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    background:rgba(255,255,255,.94);
+    border:1px solid #e7e7e7;
+    border-radius:10px;
+
+    color:#ff751f;
+    font-size:18px;
+
+    box-shadow:0 6px 18px rgba(0,0,0,.06);
+}
+
+.login-page .login-benefits strong{
+    display:block;
+    color:#171717;
+    font-size:13px;
+    font-weight:700;
+}
+
+.login-page .login-benefits small{
+    display:block;
+    margin-top:2px;
+    color:#777;
+    font-size:10px;
+}
+
+
+
+/* ADHÉSION */
+.new-account-box{
+    display:flex;align-items:center;gap:12px;
+    margin-bottom:12px;padding:13px;
+    background:#fafafa;
+    border:1px solid #eee;
+    border-radius:9px;
+}
+
+.new-account-box>span{
+    width:38px;height:38px;
+    flex:0 0 38px;
+    display:flex;align-items:center;justify-content:center;
+    border-radius:8px;
+    background:#fff0e6;
+    color:#ff751f;
+    font-size:17px;
+}
+
+.new-account-box strong{display:block;color:#333;font-size:11px}
+.new-account-box p{margin:3px 0 0;color:#888;font-size:9px;line-height:1.5}
+
+.btn-adhesion{
+    min-height:44px;
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid #d8d8d8;
+    border-radius:8px;
+    background:#fff;
+    color:#444;
+    font-size:11px;
+    font-weight:650;
+}
+
+.btn-adhesion:hover{
+    border-color:#ff751f;
+    background:#fff7f2;
+    color:#ff751f;
+}
+
+/* AIDE */
+.login-help{
+    margin-top:22px;
+    text-align:center;
+    color:#999;
+    font-size:10px;
+}
+.login-help a{color:#ff751f;text-decoration:none}
+
+/* FOOTER */
+.login-footer{
+    padding:16px 0;
+    background:#000;
+    border-top:3px solid #ff751f;
+    color:#999;
+    font-size:10px;
+}
+
+/* RESPONSIVE */
+@media(max-width:991px){
+    .min-vh-login{min-height:calc(100vh - 138px);padding:45px 0}
+}
+
+@media(max-width:576px){
+    .login-header{height:72px}
+    .login-brand img{width:120px}
+    .btn-back span{display:none}
+    .btn-back{width:40px;height:40px;padding:0;justify-content:center}
+    .btn-back i{margin:0!important}
+    .login-card{padding:27px 20px;border-radius:14px}
+    .login-card-logo{width:135px}
+}
+
+
+
+
+
+/* FORM */
+
+.form-label {
+    font-size: 13px;
+
+    font-weight: 600;
+
+    color: #405263;
+}
+
+
+.stagia-input {
+    border: 1px solid #d8e1e9;
+
+    border-radius: 9px;
+
+    overflow: hidden;
+
+    transition: .2s;
+}
+
+
+.stagia-input:focus-within {
+    border-color: var(--primary);
+
+    box-shadow:
+        0 0 0 3px rgba(7, 87, 163, .08);
+}
+
+
+.stagia-input .input-group-text {
+    border: none;
+
+    background: #ffffff;
+
+    color: #84919e;
+
+    padding-left: 15px;
+}
+
+
+.stagia-input .form-control {
+    border: none;
+
+    box-shadow: none;
+
+    min-height: 48px;
+
+    font-size: 14px;
+}
+
+
+.password-toggle {
+    border: none;
+
+    background: white;
+
+    color: #84919e;
+
+    padding: 0 15px;
+}
+
+
+.password-toggle:hover {
+    color: var(--primary);
+}
+
+
+.forgot-link {
+    font-size: 11px;
+
+    text-decoration: none;
+
+    color: var(--primary);
+}
+
+
+.form-check-label {
+    color: #667686;
+
+    font-size: 12px;
+}
+
+.form-check-input:checked {
+  background-color: black;
+  border-color: var(--primary);
+}
+
+/* LOGIN BUTTON */
+.btn-stagia-login {
+  min-height: 50px;
+  background: linear-gradient(120deg,#000,#ff751f);;
+  border: none;
+  color: white;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.btn-stagia-login:hover {
+    background: black;
+
+    color: white;
+}
+
+
+/* SEPARATEUR */
+
+.login-separator {
+    text-align: center;
+
+    margin: 26px 0 18px;
+
+    position: relative;
+}
+
+.login-separator::before {
+    content: "";
+
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    top: 50%;
+
+    height: 1px;
+
+    background: #e5ebf0;
+}
+
+
+.login-separator span {
+    background: white;
+    position: relative;
+    padding: 0 12px;
+    color: #9aa5af;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+
+/* NOUVEAU COMPTE */
+
+.new-account-box {
+    display: flex;
+    gap: 13px;
+    background: #f6f9fc;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 14px;
+}
+
+.new-account-box > i {
+    color: var(--secondary);
+    font-size: 22px;
+}
+
+.new-account-box strong {
+    display: block;
+    font-size: 12px;
+    color: #35495b;
+}
+
+.new-account-box p {
+    font-size: 11px;
+    color: #82909d;
+    margin: 4px 0 0;
+    line-height: 1.5;
+}
+
+
+
+/* AIDE */
+
+.login-help {
+    text-align: center;
+
+    margin-top: 25px;
+
+    color: #8b98a4;
+
+    font-size: 11px;
+}
+
+
+.login-help a {
+    color: var(--primary);
+
+    text-decoration: none;
+}
+
+
+
+/* FOOTER LOGIN */
+
+.login-footer {
+    background: #ffffff;
+
+    border-top: 1px solid #e4eaf0;
+
+    padding: 17px 0;
+
+    color: #8995a0;
+
+    font-size: 11px;
+}
+
+
+
+/* RESPONSIVE */
+
+@media(max-width: 991px) {
+
+    .min-vh-login {
+        min-height: calc(100vh - 140px);
+
+        padding: 50px 0;
+    }
+
+}
+
+
+@media(max-width: 576px) {
+
+    .login-header {
+        height: 75px;
+    }
+
+    .login-brand small {
+        display: none;
+    }
+
+    .btn-back {
+        font-size: 0;
+    }
+
+    .btn-back i {
+        font-size: 18px;
+        margin: 0 !important;
+    }
+
+    .login-card {
+        padding: 25px 20px;
+        border-radius: 14px;
+    }
+
+}
+
+/* DASHBOARD */
+.app-body{background:#f5f7fa;overflow-x:hidden}
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 255px;
+  background: #000;
+  color: #fff;
+  z-index: 1100;
+  transition: .25s;
+}
+
+
+.sidebar-brand strong,.sidebar-brand small{display:block}
+.sidebar-brand small{font-size:10px;color:#9fb0bf}
+.sidebar-menu{padding:16px 11px}.sidebar-menu a{display:flex;align-items:center;gap:12px;padding:11px 13px;margin:3px 0;color:#becbd6;text-decoration:none;border-radius:8px;font-size:13px}
+.sidebar-menu a:hover,.sidebar-menu a.active{background:#ff751f;color:#fff}
+.sidebar-menu a i{font-size:17px;width:20px}.menu-title{font-size:9px;color:#708597;letter-spacing:1.4px;padding:20px 13px 6px}
+.app-main{margin-left:255px;min-height:100vh;transition:.25s}
+.topbar{height:76px;background:#fff;border-bottom:1px solid #e5ebf0;display:flex;align-items:center;padding:0 25px;position:sticky;top:0;z-index:1000}
+.sidebar-toggle,.top-icon,.user-menu{border:0;background:transparent}
+.sidebar-toggle{font-size:25px;color:#526577}.top-icon{font-size:19px;color:#637485}
+.user-menu{display:flex;align-items:center;gap:9px}.user-menu strong,.user-menu small{display:block}
+.user-menu strong{font-size:12px}.user-menu small{font-size:10px;color:#8995a0}
+.user-avatar{width:39px;height:39px;border-radius:10px;background:#e8f2fc;color:#0757a3;display:flex;align-items:center;justify-content:center;font-weight:700}
+.dashboard-content{padding:26px}.page-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
+.page-heading h1{font-size:23px;font-weight:700;margin:0}
+.page-heading p{font-size:12px;color:#81909c;margin:4px 0 0}
+.date-badge{background:#fff;border:1px solid #e1e8ee;border-radius:8px;padding:8px 11px;font-size:11px;color:#687887}
+.stat-card {
+  background: #fff;
+  border: 1px solid #e5ebf0;
+    border-top-width: 1px;
+    border-top-style: solid;
+    border-top-color: rgb(229, 235, 240);
+  border-radius: 12px;
+  padding: 19px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 115px;
+  border-top: 2px solid #e0671b;
+}
+.stat-icon{width:48px;height:48px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:21px}
+.stat-icon.blue{background:#e9f3fd;color:#0757a3}
+.stat-icon.green{background:#e6f7f2;color:#087460}.stat-icon.purple{background:#f1ebff;color:#7252b8}.stat-icon.orange{background:#fff1e3;color:#c77424}.stat-card span,.stat-card small{display:block}.stat-card span{font-size:11px;color:#7b8996}.stat-card strong{font-size:25px;color:#213548}.stat-card small{font-size:9px;color:#9ba6af}.dashboard-card{background:#fff;border:1px solid #e5ebf0;border-radius:12px;margin-top:16px;min-height:310px}.card-heading{padding:18px 20px;border-bottom:1px solid #eef2f5;display:flex;justify-content:space-between}.card-heading h5{font-size:14px;margin:0}.card-heading p,.card-heading a{font-size:10px;margin:3px 0 0;color:#8a97a2}.empty-state{height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#8a98a4}.empty-state i{font-size:34px;margin-bottom:10px}.empty-state strong{font-size:13px;color:#586979}.empty-state span{font-size:10px}.quick-actions{padding:10px}.quick-actions a{display:flex;align-items:center;gap:11px;padding:13px 10px;color:#4f6172;text-decoration:none;border-radius:8px;font-size:12px}.quick-actions a:hover{background:#f5f8fb;color:#0757a3}.quick-actions a span{flex:1}.sidebar-collapsed .sidebar{transform:translateX(-255px)}.sidebar-collapsed .app-main{margin-left:0}
+@media(max-width:991px)
+{.sidebar{transform:translateX(-255px)}.app-main{margin-left:0}
+.sidebar-collapsed .sidebar{transform:translateX(0)}
+.dashboard-content{padding:18px}}
+
+
+/* ETABLISSEMENTS */
+.establishment-card{min-height:auto!important;overflow:hidden}
+.establishment-toolbar{padding:14px 16px;border-bottom:1px solid #e8edf2}
+.establishment-toolbar .form-control,.establishment-toolbar .form-select,.establishment-toolbar .input-group-text{height:40px;font-size:12px;border-color:#dce4eb}
+.stagia-table{margin:0}
+.stagia-table th{background:#f8fafc;color:#677888;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:12px 14px;border-bottom:1px solid #e5ebf0}
+.stagia-table td{padding:12px 14px;font-size:12px;color:#526474;border-color:#edf1f4}
+.table-main-text{display:block;color:#263b4d;font-size:12px}
+.table-sub-text{display:block;color:#929faa;font-size:9px;margin-top:2px}
+.institution-avatar{width:38px;height:38px;border-radius:9px;background:#eaf3fc;color:#0757a3;display:flex;align-items:center;justify-content:center;font-size:16px}
+
+/* ETAT VIDE */
+.stagia-table .table-empty{height:230px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;text-align:center!important;color:#96a3ae}
+.stagia-table .table-empty i{font-size:35px;color:#9baab6;margin-bottom:9px}
+.stagia-table .table-empty strong{display:block;font-size:13px;color:#536575;margin-bottom:4px}
+.stagia-table .table-empty span{display:block;font-size:10px;color:#96a3ae}
+
+.table-footer{min-height:46px;padding:11px 16px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #edf1f4;font-size:10px;color:#84919d}
+.pagination .page-link{color:#53687a}
+.pagination .active .page-link{background:#0757a3;border-color:#0757a3}
+
+
+
+/* FORMULAIRES */
+.form-card{min-height:0!important;margin-top:0;margin-bottom:16px;overflow:hidden}.form-section-title{display:flex;align-items:center;gap:11px;padding:15px 17px;border-bottom:1px solid #e9eef2;background:#fbfcfd}.form-section-title>i{width:38px;height:38px;border-radius:9px;background:#eaf3fc;color:#0757a3;display:flex;align-items:center;justify-content:center;font-size:17px}.form-section-title h5{font-size:13px;margin:0;color:#293d50}.form-section-title p{font-size:9px;color:#8d9aa5;margin:2px 0 0}.form-card .form-label{font-size:11px;color:#526575;margin-bottom:5px}.form-card .form-label span{color:#dc3545}.form-card .form-control,.form-card .form-select{min-height:42px;font-size:12px;border-color:#dce4eb}.form-card textarea.form-control{min-height:85px}.form-card .form-control:focus,.form-card .form-select:focus{border-color:#0757a3;box-shadow:0 0 0 3px rgba(7,87,163,.08)}.registration-info{display:flex;gap:10px;padding:13px;background:#f1f7fc;border-radius:9px;color:#536777}.registration-info>i{color:#0757a3;font-size:18px}.registration-info strong{font-size:11px;display:block;color:#345067}.registration-info p{font-size:10px;line-height:1.6;margin:3px 0 0}
+
+
+/* DETAIL ETABLISSEMENT */
+.detail-back{display:inline-block;color:#718291;text-decoration:none;font-size:10px;margin-bottom:7px}.detail-back:hover{color:#0757a3}.detail-status{padding:8px 12px;font-size:10px}.detail-card{min-height:0!important;margin-top:0;margin-bottom:16px;overflow:hidden}.detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0;padding:5px 17px 16px}.detail-grid>div{padding:14px 5px;border-bottom:1px solid #edf1f4}.detail-grid span,.detail-grid strong{display:block}.detail-grid span{font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:#8c99a4;margin-bottom:5px}.detail-grid strong{font-size:12px;color:#35495b;font-weight:600}.detail-grid .detail-full{grid-column:1/-1}.status-panel{background:#f7f9fb;border:1px solid #e8edf1;border-radius:9px;padding:14px}.status-panel span,.status-panel strong,.status-panel small{display:block}.status-panel span{font-size:9px;color:#8c99a4;text-transform:uppercase}.status-panel strong{font-size:16px;margin:5px 0}.status-panel small{font-size:9px;color:#929fa9}
+@media(max-width:576px){.detail-grid{grid-template-columns:1fr}.detail-grid .detail-full{grid-column:auto}}
+
+
+/* ADHESION PUBLIQUE */
+.public-form-page{padding:3px 0 80px;background:#f5f8fb;min-height:calc(100vh - 82px)}
+.public-form-heading{max-width:760px;margin-bottom:28px}.public-form-heading>span{font-size:10px;letter-spacing:1.5px;color:#fd6707;font-weight:700}.public-form-heading h1{font-size:30px;margin:8px 0;color:#203649}.public-form-heading p{font-size:13px;color:#71818f;line-height:1.7}.public-card{background:#fff;border:1px solid #e3e9ee;border-radius:12px;margin-bottom:16px;overflow:hidden}.public-card .form-label{font-size:11px;color:#526575}.public-card .form-control,.public-card .form-select{min-height:42px;font-size:12px;border-color:#dce4eb}.adhesion-step{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #edf1f4}.adhesion-step>span{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#eaf3fc;color:#0757a3;font-size:10px;font-weight:700}.adhesion-step strong,.adhesion-step small{display:block}.adhesion-step strong{font-size:11px;color:#3f5365}.adhesion-step small{font-size:9px;color:#8b98a3}.success-card{width:100%;max-width:480px;background:#fff;border:1px solid #e1e8ee;border-radius:16px;padding:40px;box-shadow:0 20px 60px rgba(32,58,82,.1)}.success-icon{width:65px;height:65px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;background:#e6f7f0;color:#198754;font-size:28px}.success-card h2{font-size:24px}.success-card p{font-size:12px;color:#748491}.reference-box{background:#f5f8fb;border:1px dashed #cad6df;border-radius:9px;padding:14px;margin:20px 0}.reference-box small,.reference-box strong{display:block}.reference-box small{font-size:9px;color:#8a98a3}.reference-box strong{font-size:17px;color:#0757a3;margin-top:3px}
+
+
+/* ESPACE ETABLISSEMENT */
+.welcome-establishment {
+  background: linear-gradient(120deg,#ff751f,#000);
+  border-radius: 14px;
+  padding: 25px 28px;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.welcome-establishment span{font-size:9px;letter-spacing:1.5px;opacity:.8}.welcome-establishment h2{font-size:22px;margin:5px 0}.welcome-establishment p{font-size:11px;margin:0;color:#ffffffc7}
+.welcome-building{width:68px;height:68px;border-radius:15px;background:#ffffff1c;display:flex;align-items:center;justify-content:center;font-size:30px}.setup-list{padding:10px}.setup-list a{display:flex;align-items:center;gap:12px;padding:14px 10px;border-bottom:1px solid #edf1f4;text-decoration:none;color:#44586a}.setup-list a:last-child{border:0}.setup-list a:hover{background:#f8fafc}.setup-list a>div{flex:1}.setup-list strong,.setup-list small{display:block}.setup-list strong{font-size:12px}.setup-list small{font-size:9px;color:#8c99a4;margin-top:3px}.setup-number{width:31px;height:31px;border-radius:8px;background:#eaf3fc;color:#0757a3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+@media(max-width:576px){.welcome-building{display:none}.welcome-establishment{padding:22px}.welcome-establishment h2{font-size:19px}}
+
+
+/* ACTIVATION COMPTE */
+.activation-user{background:#f5f8fb;border:1px solid #e3e9ee;border-radius:9px;padding:12px}.activation-user small,.activation-user strong{display:block}.activation-user small{font-size:9px;color:#8b98a3}.activation-user strong{font-size:13px;color:#0757a3;margin-top:3px}.password-help{display:block;font-size:9px;color:#8b98a3;margin-top:6px;line-height:1.5}.activation-invalid{width:60px;height:60px;border-radius:50%;margin:0 auto 15px;background:#fff2e5;color:#c77424;display:flex;align-items:center;justify-content:center;font-size:28px}
+
+
+/* =========================================================
+   LISTES ACADÉMIQUES COMPACTES
+   ========================================================= */
+
+.academic-toolbar{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:12px 0 14px;
+    flex-wrap:wrap;
+}
+
+.academic-search{width:260px}
+.academic-toolbar .form-select{width:230px}
+.academic-toolbar .academic-perpage{width:125px}
+
+.academic-toolbar .form-control,
+.academic-toolbar .form-select,
+.academic-toolbar .btn{
+    height:38px;
+    font-size:13px;
+}
+
+.academic-kpis{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin-bottom:12px;
+}
+
+.academic-kpi{
+    background:#fff;
+    border:1px solid #dfe6ee;
+    padding:12px 14px;
+    min-height:68px;
+}
+
+.academic-kpi span{
+    display:block;
+    font-size:12px;
+    color:#64748b;
+    margin-bottom:4px;
+}
+
+.academic-kpi strong{
+    font-size:20px;
+    color:#0f2740;
+}
+
+.academic-table-card{
+    background:#fff;
+    border:1px solid #dfe6ee;
+}
+
+.academic-table{
+    font-size:13px;
+}
+
+.academic-table thead th{
+    background:#f5f7fa;
+    border-bottom:1px solid #dfe6ee;
+    color:#24384d;
+    font-size:11px;
+    text-transform:uppercase;
+    font-weight:600;
+    padding:11px 12px;
+    white-space:nowrap;
+}
+
+.academic-table tbody td{
+    padding:11px 12px;
+    border-bottom:1px solid #edf1f5;
+    vertical-align:middle;
+}
+
+.academic-table tbody tr:hover{
+    background:#fafcff;
+}
+
+.academic-table-footer{
+    min-height:52px;
+    padding:10px 12px;
+    border-top:1px solid #dfe6ee;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    font-size:12px;
+    color:#64748b;
+}
+
+.academic-table .btn-action{
+    width:30px;
+    height:30px;
+    padding:0;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+}
+
+@media(max-width:900px){
+    .academic-kpis{grid-template-columns:repeat(2,1fr)}
+}
+
+@media(max-width:600px){
+    .academic-kpis{grid-template-columns:1fr}
+    .academic-search,
+    .academic-toolbar .form-select{width:100%}
+}
+
+/* =========================================================
+   STAGIA - STYLE LISTES TYPE SIREMS
+========================================================= */
+
+.stagia-page-head{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:20px;
+    margin-bottom:20px;
+}
+
+.stagia-page-head h1 {
+  margin: 6px 0 2px;
+  font-size: 22px;
+  font-weight: 750;
+  color: #0d243d;
+}
+
+.stagia-page-head p{
+    margin:0;
+    font-size:14px;
+    color:#73839a;
+}
+
+
+/* KPI */
+
+.stagia-kpi-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:16px;
+    margin-bottom:18px;
+}
+
+.stagia-kpi-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 69px;
+  box-shadow: 0 2px 7px rgba(20,45,75,.035);
+  border-top: 4px solid #ff751f;
+}
+
+.stats-card, .stats-panel {
+  background: #fff;
+    border-top-width: 1px;
+    border-top-style: solid;
+    border-top-color: rgb(231, 235, 240);
+  border-radius: 16px;
+  padding: 18px;
+  border-top: 3px solid #f98738;
+}
+
+.stagia-kpi-card span{
+    display:block;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.3px;
+    color:#5c6f86;
+}
+
+.stagia-kpi-card strong{
+    display:block;
+    margin:4px 0;
+    font-size:24px;
+    color:#0c223b;
+}
+
+.stagia-kpi-card small{
+    color:#75879c;
+    font-size:12px;
+}
+
+.stagia-kpi-icon{
+    width:48px;
+    height:48px;
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:21px;
+}
+
+.kpi-blue{background:#def3f8;color:#038aa7}
+.kpi-green{background:#dcf9e8;color:#16a05d}
+.kpi-orange{background:#fff0dc;color:#ef9209}
+.kpi-purple{background:#eee8ff;color:#7457d9}
+
+
+/* CARTE TABLEAU */
+
+.stagia-list-card{
+    background:#fff;
+    border:1px solid #dfe7ef;
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:0 2px 8px rgba(20,45,75,.03);
+    border-left: 2px solid #e96b1c;
+}
+
+
+/* TOOLBAR */
+
+.stagia-list-toolbar{
+    min-height:70px;
+    padding:12px 14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:15px;
+    border-bottom:1px solid #e3eaf1;
+}
+
+.stagia-tabs{
+    display:flex;
+    background:#f5f7fa;
+    padding:4px;
+    border-radius:10px;
+}
+
+.stagia-tab{
+    border:0;
+    background:transparent;
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:12px;
+    color:#64748b;
+}
+
+.stagia-tab span{
+    margin-left:3px;
+    font-size:11px;
+}
+
+.stagia-tab.active{
+    background:#fff;
+    color:#10263e;
+    font-weight:700;
+    box-shadow:0 1px 4px rgba(0,0,0,.08);
+}
+
+.stagia-list-filters{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.stagia-table-search{
+    width:280px;
+}
+
+.stagia-list-filters .form-control,
+.stagia-list-filters .form-select{
+    height:38px;
+    font-size:13px;
+}
+
+.stagia-list-filters > .form-select{
+    width:190px;
+}
+
+.stagia-list-filters .stagia-per-page{
+    width:75px;
+}
+
+
+/* TABLE */
+
+.stagia-modern-table{
+    font-size:13px;
+}
+
+.stagia-modern-table thead th{
+    background:#f7f9fb;
+    border-bottom:1px solid #dfe7ef;
+    padding:12px 14px;
+    color:#58708a;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.25px;
+    white-space:nowrap;
+}
+
+.stagia-modern-table tbody td{
+    padding:13px 14px;
+    border-color:#edf1f5;
+    color:#26394d;
+}
+
+.stagia-modern-table tbody tr:hover{
+    background:#fbfcfe;
+}
+
+.stagia-modern-table .table-main-text{
+    font-weight:650;
+    color:#172d44;
+}
+
+
+/* ACTION */
+
+.stagia-modern-table .btn-action{
+    width:32px;
+    height:32px;
+    padding:0;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:7px;
+}
+
+
+/* FOOTER + PAGINATION */
+
+.stagia-list-footer{
+    min-height:58px;
+    border-top:1px solid #e3eaf1;
+    padding:12px 14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:12px;
+    color:#75879a;
+}
+
+.stagia-list-footer .page-link{
+    min-width:31px;
+    text-align:center;
+}
+
+@media(max-width:1000px){
+    .stagia-kpi-grid{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .stagia-list-toolbar{
+        align-items:stretch;
+        flex-direction:column;
+    }
+
+    .stagia-list-filters{
+        flex-wrap:wrap;
+    }
+}
+
+@media(max-width:600px){
+    .stagia-kpi-grid{
+        grid-template-columns:1fr;
+    }
+
+    .stagia-page-head{
+        align-items:stretch;
+        flex-direction:column;
+    }
+
+    .stagia-table-search,
+    .stagia-list-filters > .form-select{
+        width:100%;
+    }
+}
+
+/* =========================================================
+   HEADER PAGE ADHESION
+========================================================= */
+
+.adhesion-header{
+    height:84px;
+    min-height:84px;
+    padding:0;
+    background:#000;
+    border-top:4px solid #ff751f;
+    border-bottom:1px solid #222;
+}
+
+/* Marque */
+.adhesion-brand{
+    height:80px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:0;
+    text-decoration:none;
+}
+
+/* Logo : grand visuellement sans agrandir le header */
+.adhesion-logo{
+    width:65px;
+    height:auto;
+    display:block;
+    transform:scale(1.65);
+    transform-origin:left center;
+    margin-right:28px;
+}
+
+/* Texte */
+.adhesion-brand-text{
+    display:flex;
+    flex-direction:column;
+}
+
+.adhesion-brand-text strong{
+    color:#fff;
+    font-size:20px;
+    font-weight:800;
+    line-height:1.1;
+}
+
+.adhesion-brand-text small{
+    margin-top:3px;
+    color:#ff751f;
+    font-size:11px;
+}
+
+/* Bouton retour */
+.adhesion-header .btn-back{
+    padding:10px 16px;
+    background:#fff;
+    border:1px solid #ddd;
+    border-radius:8px;
+    color:#333;
+    font-size:12px;
+    font-weight:600;
+    text-decoration:none;
+}
+
+.adhesion-header .btn-back:hover{
+    background:#ff751f;
+    border-color:#ff751f;
+    color:#fff;
+}
+
+/* Mobile */
+@media(max-width:576px){
+    .adhesion-header{
+        height:72px;
+        min-height:72px;
+    }
+
+    .adhesion-brand{
+        height:68px;
+    }
+
+    .adhesion-logo{
+        width:45px;
+        transform:scale(1.4);
+        margin-right:15px;
+    }
+
+    .adhesion-brand-text strong{
+        font-size:15px;
+    }
+
+    .adhesion-brand-text small{
+        font-size:9px;
+    }
+}
+
+/* =========================================================
+   SIDEBAR STAGIA
+========================================================= */
+
+.sidebar{
+    position:fixed;
+    left:0;
+    top:0;
+    bottom:0;
+
+    width:255px;
+    height:100vh;
+
+    display:flex;
+    flex-direction:column;
+
+    background:#000;
+    color:#fff;
+
+    z-index:1100;
+    overflow:hidden;
+
+    transition:.25s;
+}
+
+/* =========================================================
+   LOGO - reste fixe en haut
+========================================================= */
+
+.sidebar-brand{
+    height:88px;
+    min-height:88px;
+
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    justify-content:center;
+
+    padding:8px 20px;
+
+    border-bottom:1px solid rgba(255,255,255,.10);
+
+    flex-shrink:0;
+}
+
+.sidebar-brand-link{
+    display:flex;
+    align-items:center;
+
+    height:50px;
+
+    text-decoration:none;
+}
+/* =========================================================
+   LOGO SIDEBAR PLUS GRAND SANS AGRANDIR LA SIDEBAR
+========================================================= */
+
+.sidebar-brand{
+    height:88px;
+    min-height:88px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding:8px 20px;
+    border-bottom:1px solid rgba(255,255,255,.10);
+    overflow:hidden; /* garde la même hauteur */
+}
+
+.sidebar-brand-link{
+    display:flex;
+    align-items:center;
+    height:42px;          /* petite zone réelle */
+    overflow:visible;
+}
+
+/* on garde une petite width réelle,
+   mais on agrandit visuellement le logo */
+.sidebar-logo{
+    width:62px;
+    height:auto;
+    display:block;
+    transform:scale(1.9);
+    transform-origin:left center;
+}
+
+/* petit texte sous le logo */
+.sidebar-space-name{
+    margin-top:4px;
+    color:#a9a9a9;
+    font-size:9px;
+}
+
+/* =========================================================
+   MENU SCROLLABLE
+========================================================= */
+
+.sidebar-menu{
+    flex:1;
+
+    padding:15px 10px 30px;
+
+    overflow-y:auto;
+    overflow-x:hidden;
+
+    scrollbar-width:thin;
+    scrollbar-color:#ff751f #111;
+}
+
+/* Scroll Chrome / Edge */
+.sidebar-menu::-webkit-scrollbar{
+    width:5px;
+}
+
+.sidebar-menu::-webkit-scrollbar-track{
+    background:#111;
+}
+
+.sidebar-menu::-webkit-scrollbar-thumb{
+    background:#ff751f;
+    border-radius:10px;
+}
+
+.sidebar-menu::-webkit-scrollbar-thumb:hover{
+    background:#e85e00;
+}
+
+
+/* =========================================================
+   LIENS
+========================================================= */
+
+.sidebar-menu a{
+    display:flex;
+    align-items:center;
+    gap:12px;
+
+    min-height:43px;
+
+    padding:10px 13px;
+    margin:3px 0;
+
+    border-radius:8px;
+
+    color:#d0d0d0;
+
+    font-size:12px;
+    text-decoration:none;
+
+    transition:.2s;
+}
+
+.sidebar-menu a i{
+    width:21px;
+
+    color:#fff;
+
+    font-size:17px;
+
+    text-align:center;
+}
+
+.sidebar-menu a:hover{
+    background:#171717;
+    color:#fff;
+}
+
+.sidebar-menu a:hover i{
+    color:#ff751f;
+}
+
+.sidebar-menu a.active{
+    background:#ff751f;
+    color:#fff;
+}
+
+.sidebar-menu a.active i{
+    color:#fff;
+}
+
+
+/* =========================================================
+   TITRES DU MENU
+========================================================= */
+
+.menu-title{
+    padding:19px 13px 7px;
+
+    color:#7d8992;
+
+    font-size:8px;
+    font-weight:700;
+
+    letter-spacing:1.5px;
+}
+
+
+/* =========================================================
+   CONTENU PRINCIPAL
+========================================================= */
+
+.app-main{
+    margin-left:255px;
+    min-height:100vh;
+    transition:.25s;
+}
+
+
+/* Sidebar masquée */
+.sidebar-collapsed .sidebar{
+    transform:translateX(-255px);
+}
+
+.sidebar-collapsed .app-main{
+    margin-left:0;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media(max-width:991px){
+
+    .sidebar{
+        transform:translateX(-255px);
+    }
+
+    .app-main{
+        margin-left:0;
+    }
+
+    .sidebar-collapsed .sidebar{
+        transform:translateX(0);
+    }
+}
+
+/* =========================================================
+   SIDEBAR STAGIA + SUBMENUS
+========================================================= */
+
+.sidebar{
+    position:fixed;
+    inset:0 auto 0 0;
+    width:255px;
+    height:100vh;
+
+    display:flex;
+    flex-direction:column;
+
+    background:#000;
+    color:#fff;
+
+    z-index:1100;
+    overflow:hidden;
+    transition:.25s;
+}
+
+
+/* =========================================================
+   LOGO FIXE
+========================================================= */
+
+.sidebar-brand{
+    height:86px;
+    min-height:86px;
+  background: linear-gradient(120deg,#000,#ff751f);
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding:6px 20px;
+    border-bottom:1px solid #ffffff15;
+    overflow:hidden;
+    flex-shrink:0;
+}
+
+.sidebar-brand-link{
+    width:80px;
+    height:45px;
+    display:flex;
+    align-items:center;
+    text-decoration:none;
+}
+
+
+/* Agrandi visuellement, sans agrandir le header */
+.sidebar-logo{
+    width:62px;
+    height:auto;
+
+    display:block;
+
+    transform:scale(2);
+    transform-origin:left center;
+}
+
+.sidebar-space-name{
+    display:block;
+
+    margin-top:1px;
+
+    color:#9ba4aa;
+
+    font-size:9px;
+}
+
+
+/* =========================================================
+   MENU SCROLLABLE
+========================================================= */
+
+.sidebar-menu{
+    flex:1;
+
+    padding:14px 10px 35px;
+
+    overflow-y:auto;
+    overflow-x:hidden;
+
+    scrollbar-width:thin;
+    scrollbar-color:#ff751f #111;
+}
+
+
+/* Chrome / Edge */
+.sidebar-menu::-webkit-scrollbar{
+    width:5px;
+}
+
+.sidebar-menu::-webkit-scrollbar-track{
+    background:#111;
+}
+
+.sidebar-menu::-webkit-scrollbar-thumb{
+    background:#ff751f;
+    border-radius:10px;
+}
+
+
+/* =========================================================
+   LIENS + PARENTS
+========================================================= */
+
+.sidebar-menu a,
+.sidebar-parent{
+    width:100%;
+    min-height:43px;
+
+    display:flex;
+    align-items:center;
+    gap:12px;
+
+    padding:10px 13px;
+    margin:3px 0;
+
+    border:0;
+    border-radius:8px;
+
+    background:transparent;
+    color:#c9d0d5;
+
+    font-family:inherit;
+    font-size:12px;
+
+    text-align:left;
+    text-decoration:none;
+
+    cursor:pointer;
+
+    transition:.2s;
+}
+
+
+/* Icône */
+.sidebar-menu a>i:first-child,
+.sidebar-parent>i:first-child{
+    width:20px;
+
+    flex:0 0 20px;
+
+    color:#dce4e8;
+
+    font-size:16px;
+    text-align:center;
+}
+
+
+/* Hover */
+.sidebar-menu a:hover,
+.sidebar-parent:hover{
+    background:#171717;
+    color:#fff;
+}
+
+.sidebar-menu a:hover>i:first-child,
+.sidebar-parent:hover>i:first-child{
+    color:#ff751f;
+}
+
+
+/* Lien actif */
+.sidebar-menu a.active{
+    background:linear-gradient(120deg,#000,#ff751f);;
+    color:#fff;
+}
+
+.sidebar-menu a.active>i{
+    color:#fff;
+}
+
+
+/* Parent actif */
+.sidebar-parent.active-parent{
+    color:#fff;
+    background:#111;
+}
+
+.sidebar-parent.active-parent>i:first-child{
+    color:#ff751f;
+}
+
+
+/* =========================================================
+   FLÈCHE SUBMENU
+========================================================= */
+
+.submenu-arrow{
+    width:auto!important;
+    flex:none!important;
+    color:#777!important;
+    font-size:10px!important;
+    transition:transform .25s ease;
+}
+
+.sidebar-parent[aria-expanded="true"] .submenu-arrow{
+    transform:rotate(180deg);
+    color:#ff751f!important;
+}
+
+
+/* =========================================================
+   SUBMENU
+========================================================= */
+
+.submenu{
+    position:relative;
+    margin:2px 0 8px 18px;
+    padding-left:10px;
+    border-left:1px solid #2b2b2b;
+}
+
+
+/* Sous-liens */
+.sidebar-menu .submenu a{
+    min-height:36px;
+    margin:1px 0;
+    padding:8px 10px;
+    border-radius:6px;
+    color:#9fa8ae;
+    font-size:11px;
+}
+
+
+/* Icônes sous-liens */
+.sidebar-menu .submenu a>i:first-child{
+    width:17px;
+    flex:0 0 17px;
+    color:#737f86;
+    font-size:13px;
+}
+
+
+/* Hover */
+.sidebar-menu .submenu a:hover{
+    background:#151515;
+    color:#fff;
+}
+
+.sidebar-menu .submenu a:hover>i{
+    color:#ff751f;
+}
+
+
+/* Actif */
+.sidebar-menu .submenu a.active{
+    background:linear-gradient(120deg,#000,#ff751f);
+    color:#fff;
+}
+
+.sidebar-menu .submenu a.active>i{
+    color:#fff;
+}
+
+
+/* =========================================================
+   TITRES
+========================================================= */
+
+.menu-title{
+    padding:19px 13px 6px;
+    color:#68757d;
+    font-size:8px;
+    font-weight:700;
+    letter-spacing:1.5px;
+}
+
+
+/* =========================================================
+   MAIN
+========================================================= */
+
+.app-main{
+    margin-left:255px;
+    min-height:100vh;
+
+    transition:.25s;
+}
+
+
+/* Sidebar fermée */
+.sidebar-collapsed .sidebar{
+    transform:translateX(-255px);
+}
+
+.sidebar-collapsed .app-main{
+    margin-left:0;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media(max-width:991px){
+
+    .sidebar{
+        transform:translateX(-255px);
+    }
+
+    .app-main{
+        margin-left:0;
+    }
+
+    .sidebar-collapsed .sidebar{
+        transform:translateX(0);
+    }
+}
+
+.user-menu strong {
+  font-size: 12px;
+  color: #ff751f;
+}
+
+.topbar {
+  height: 76px;
+  background: #000;
+  border-bottom: 9px solid #ff751f;
+  display: flex;
+  align-items: center;
+  padding: 0 25px;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.bi::before, [class*=" bi-"]::before, [class^="bi-"]::before {
+  color: #ff751f;
+}
+
+
+.btn-group-sm > .btn, .btn-sm {
+  --bs-btn-padding-y: 0.25rem;
+  --bs-btn-padding-x: 0.5rem;
+  --bs-btn-font-size: 0.875rem;
+  --bs-btn-border-radius: var(--bs-border-radius-sm);
+}
+.btn-outline-primary {
+  --bs-btn-color: #ff751f;
+  --bs-btn-border-color: #ff751f;
+}
+
+
+.modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  color: var(--bs-modal-color);
+  pointer-events: auto;
+  background-color: floralwhite;
+  background-clip: padding-box;
+  border: var(--bs-modal-border-width) solid var(--bs-modal-border-color);
+  border-radius: var(--bs-modal-border-radius);
+  outline: 0;
+  border-top: 2px solid #d9641a;
+}
+
+/* Compteur du module Communication. */
+.sidebar-menu a{position:relative}.sidebar-communication-badge{margin-left:auto;min-width:22px;height:22px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #000;border-radius:999px;background:#ff751f;color:#000;font-size:.68rem;font-weight:800;line-height:1}.sidebar-communication-badge[hidden]{display:none!important}.sidebar-collapsed .sidebar-communication-badge{position:absolute;top:2px;right:4px;min-width:18px;height:18px;padding:0 4px;font-size:.58rem;border-color:#fff}
+
+.stagia-notif-pulse{animation:stagiaNotifPulse 1.2s ease-in-out 2}
+@keyframes stagiaNotifPulse{
+    0%{box-shadow:inset 4px 0 0 #f97316;background:rgba(249,115,22,.12)}
+    50%{box-shadow:inset 7px 0 0 #f97316;background:rgba(249,115,22,.22)}
+    100%{box-shadow:inset 4px 0 0 transparent;background:transparent}
+}
