@@ -78,6 +78,34 @@ function campaignStatusHistory(PDO $pdo,int $campaignId,?string $previous,string
         ->execute([$campaignId,$previous,$new,$reason,$userId]);
 }
 
+/** Vérifie qu'une campagne possède au moins un accueil hospitalier retenu et utilisable. */
+function campaignHasAcceptedHostCapacity(PDO $pdo,int $campaignId):bool{
+    $stmt=$pdo->prepare("
+        SELECT 1
+        FROM stage_campaign_participations participation
+        INNER JOIN stage_campaigns host_campaign
+            ON host_campaign.id=participation.host_campaign_id
+           AND host_campaign.type_campagne='ACCUEIL'
+           AND host_campaign.statut NOT IN('ANNULEE','TERMINEE')
+        INNER JOIN stage_capacity_pools capacity_pool
+            ON capacity_pool.host_campaign_id=host_campaign.id
+        INNER JOIN etablissements hospital
+            ON hospital.id=participation.host_etablissement_id
+           AND hospital.type_etablissement='HOPITAL'
+           AND hospital.statut IN('VALIDE','ACTIF')
+        WHERE participation.university_campaign_id=?
+          AND participation.statut='ACCEPTEE'
+          AND COALESCE(
+                NULLIF(participation.capacite_acceptee,0),
+                NULLIF(participation.capacite_allouee,0),
+                0
+              )>0
+        LIMIT 1
+    ");
+    $stmt->execute([$campaignId]);
+    return (bool)$stmt->fetchColumn();
+}
+
 /** Valide que les promotions choisies sont actives et compatibles avec la campagne. */
 function campaignValidatedPromotions(PDO $pdo,int $etablissementId,int $anneeId,int $stageTypeId,array $ids):array{
     $ids=array_values(array_unique(array_filter(array_map('intval',$ids))));

@@ -6,6 +6,7 @@
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/auth.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-campaign.php';
 
 try{
     /* La campagne est relue dans le périmètre de l'établissement académique de session. */
@@ -31,15 +32,7 @@ try{
     /* Seule une session en préparation peut être publiée. */
     if($c['statut']!=='EN_PREPARATION')jsonResponse(false,'Cette session ne peut pas être ouverte maintenant.');
 
-    $s=$pdo->prepare("
-        SELECT COUNT(*)
-        FROM stage_campaign_participations
-        WHERE university_campaign_id=? AND statut='ACCEPTEE'
-          AND COALESCE(capacite_acceptee,0)>0
-    ");
-    $s->execute([$cid]);
-
-    if((int)$s->fetchColumn()<1)
+    if(!campaignHasAcceptedHostCapacity($pdo,$cid))
         jsonResponse(false,'Aucune offre retenue pour ouvrir la session.');
 
     $s=$pdo->prepare("

@@ -27,6 +27,30 @@ foreach ([
     $suite->ok($response['status'] === 200, "Scénario de lecture {$path}");
 }
 
+$stageOptions = $client->request('GET', '/student/stage-options', null, $access);
+$suite->ok(
+    $stageOptions['status'] === 200 && ($stageOptions['json']['success'] ?? false),
+    'Les campagnes éligibles sont accessibles'
+);
+$d4Campaigns = $stageOptions['json']['data']['campaigns'] ?? null;
+$managedCampaigns = $stageOptions['json']['data']['university_managed_campaigns'] ?? null;
+$suite->ok(is_array($d4Campaigns), 'La collection campaigns est présente');
+$suite->ok(is_array($managedCampaigns), 'La collection university_managed_campaigns est présente');
+
+foreach (array_merge($d4Campaigns, $managedCampaigns) as $campaign) {
+    $hospitals = $campaign['hospitals'] ?? [];
+    $suite->ok(
+        is_array($hospitals) && count($hospitals) > 0,
+        'La campagne ' . ($campaign['code'] ?? '?') . ' possède un accueil hospitalier valide'
+    );
+    foreach ($hospitals as $hospital) {
+        $suite->ok(
+            (int) ($hospital['capacity'] ?? 0) > 0,
+            'La capacité hospitalière exposée est positive'
+        );
+    }
+}
+
 $refresh = $client->request('POST', '/refresh-token', ['refresh_token' => $tokens['refresh_token']]);
 $suite->ok($refresh['status'] === 200 && !empty($refresh['json']['data']['access_token']), 'Rotation du refresh token');
 $newAccess = (string) $refresh['json']['data']['access_token'];

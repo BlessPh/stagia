@@ -51,3 +51,94 @@ function studentStageTypeMode(string $stageTypeCode):array{
         'reservation_mode'=>$isD4?'STUDENT_D4_CHOICE':'UNIVERSITY_MANAGED'
     ];
 }
+
+/**
+ * Retourne les hôpitaux réellement retenus pour une campagne universitaire.
+ *
+ * Les anciens flux finalisent la capacité dans capacite_acceptee, tandis que
+ * le flux générique d'accueil utilise capacite_allouee. Une simple proposition
+ * n'est jamais exposée aux étudiants tant qu'elle n'a pas été retenue/allouée.
+ */
+function studentCampaignAcceptedHospitals(PDO $pdo,int $campaignId):array{
+    $stmt=$pdo->prepare("
+        SELECT
+            part.id AS participation_id,
+            part.host_etablissement_id,
+            COALESCE(
+                NULLIF(part.capacite_acceptee,0),
+                NULLIF(part.capacite_allouee,0)
+            ) AS capacity,
+            part.frais_requis,
+            part.montant_frais,
+            part.devise,
+            part.conditions,
+            h.code AS hospital_code,
+            h.nom AS hospital_name,
+            h.ville,
+            h.province,
+            (
+                SELECT COUNT(*)
+                FROM stage_reservations reservation
+                WHERE reservation.participation_id=part.id
+                  AND (
+                        reservation.statut IN('EN_ATTENTE_PAIEMENT','CONFIRMEE')
+                        OR (
+                            reservation.statut='RESERVEE_TEMPORAIREMENT'
+                            AND (
+                                reservation.expires_at IS NULL
+                                OR reservation.expires_at>NOW()
+                            )
+                        )
+                  )
+            ) AS used_places
+        FROM stage_campaign_participations part
+        INNER JOIN stage_campaigns host_campaign
+            ON host_campaign.id=part.host_campaign_id
+           AND host_campaign.type_campagne='ACCUEIL'
+           AND host_campaign.statut NOT IN('ANNULEE','TERMINEE')
+        INNER JOIN stage_capacity_pools capacity_pool
+            ON capacity_pool.host_campaign_id=host_campaign.id
+        INNER JOIN etablissements h
+            ON h.id=part.host_etablissement_id
+           AND h.type_etablissement='HOPITAL'
+           AND h.statut IN('VALIDE','ACTIF')
+        WHERE part.university_campaign_id=?
+          AND part.statut='ACCEPTEE'
+          AND COALESCE(
+                NULLIF(part.capacite_acceptee,0),
+                NULLIF(part.capacite_allouee,0),
+                0
+              )>0
+        ORDER BY h.nom,part.id
+    ");
+    $stmt->execute([$campaignId]);
+
+    $hospitals=[];
+    foreach($stmt->fetchAll(PDO::FETCH_ASSOC) as $participation){
+        $capacity=(int)$participation['capacity'];
+        $used=(int)$participation['used_places'];
+        $available=max(0,$capacity-$used);
+
+        $hospitals[]=[
+            'participation_id'=>(int)$participation['participation_id'],
+            'hospital'=>[
+                'code'=>$participation['hospital_code'],
+                'name'=>$participation['hospital_name'],
+                'city'=>$participation['ville'],
+                'province'=>$participation['province']
+            ],
+            'capacity'=>$capacity,
+            'used_places'=>$used,
+            'available_places'=>$available,
+            'available'=>$available>0,
+            'fees_required'=>(bool)$participation['frais_requis'],
+            'amount'=>$participation['montant_frais']!==null
+                ?(float)$participation['montant_frais']
+                :null,
+            'currency'=>$participation['devise'],
+            'conditions'=>$participation['conditions']
+        ];
+    }
+
+    return $hospitals;
+}

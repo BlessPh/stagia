@@ -37,7 +37,7 @@ try{
         $hostIds=array_values(array_unique(array_filter(array_map('intval',(array)($configuration['selected_host_ids']??[])))));
         $demands=(array)($configuration['selected_host_demands']??[]);
 
-        if($c['stage_type_code']==='MEDICAL_D4'&&!$hostIds)throw new RuntimeException('Sélectionnez au moins un hôpital avant de publier cette campagne D4.');
+        if(!$hostIds)throw new RuntimeException('Sélectionnez au moins un hôpital avant de publier cette campagne.');
 
         if($hostIds){
             $ins=$pdo->prepare("INSERT INTO stage_campaign_participations(university_campaign_id,host_etablissement_id,statut,capacite_demandee,date_debut,date_fin)
@@ -63,11 +63,8 @@ try{
         if(empty($c['ouverture_candidatures'])||$c['ouverture_candidatures']>$c['db_now'])throw new RuntimeException("La date d'ouverture des candidatures n'est pas encore atteinte.");
         if(empty($c['cloture_candidatures'])||$c['cloture_candidatures']<=$c['db_now'])throw new RuntimeException('La date de clôture des candidatures est dépassée.');
 
-        $hostIds=array_values(array_filter(array_map('intval',(array)($configuration['selected_host_ids']??[]))));
-        if($hostIds){
-            $s=$pdo->prepare("SELECT COUNT(*) FROM stage_campaign_participations WHERE university_campaign_id=? AND statut='ACCEPTEE'");
-            $s->execute([$id]);if(!(int)$s->fetchColumn())throw new RuntimeException("Aucun hôpital sollicité n'a encore accepté cette campagne.");
-        }
+        if(!campaignHasAcceptedHostCapacity($pdo,$id))
+            throw new RuntimeException("Aucun hôpital sollicité n'a encore accepté cette campagne avec une capacité valide.");
 
         $new='OUVERTE';$pdo->prepare("UPDATE stage_campaigns SET statut='OUVERTE' WHERE id=? AND owner_etablissement_id=?")->execute([$id,$eid]);
         $message='Campagne ouverte aux étudiants éligibles.';

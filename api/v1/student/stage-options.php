@@ -394,6 +394,12 @@ try{
             ];
         }
 
+        /* Une campagne ouverte sans accueil hospitalier finalisé ne doit pas
+           être proposée, même si des données historiques incohérentes existent. */
+        if(!$hospitals){
+            continue;
+        }
+
 
         /* =================================================
            CAMPAGNE
@@ -470,8 +476,9 @@ try{
     }
 
 
-    /* Les autres types restent visibles, mais leur placement est piloté par
-       l'université : ils ne sont jamais envoyés au service de réservation D4. */
+    /* Les autres types restent visibles quand un accueil hospitalier valide
+       existe, mais leur placement est piloté par l'université : ils ne sont
+       jamais envoyés au service de réservation D4. */
     $stmt=$pdo->prepare("
         SELECT DISTINCT ae.id academic_enrollment_id,c.id campaign_id,c.code,c.titre,
                c.date_debut,c.date_fin,st.code stage_type_code,st.libelle stage_type_label,
@@ -486,11 +493,36 @@ try{
         JOIN promotions p ON p.id=ae.promotion_id
         LEFT JOIN filieres f ON f.id=p.filiere_id
         WHERE se.student_id=? AND se.statut='ACTIF' AND ae.statut='EN_COURS'
+          AND EXISTS(
+              SELECT 1
+              FROM stage_campaign_participations accepted_part
+              JOIN stage_campaigns accepted_host_campaign
+                ON accepted_host_campaign.id=accepted_part.host_campaign_id
+               AND accepted_host_campaign.type_campagne='ACCUEIL'
+               AND accepted_host_campaign.statut NOT IN('ANNULEE','TERMINEE')
+              JOIN stage_capacity_pools accepted_pool
+                ON accepted_pool.host_campaign_id=accepted_host_campaign.id
+              JOIN etablissements accepted_hospital
+                ON accepted_hospital.id=accepted_part.host_etablissement_id
+               AND accepted_hospital.type_etablissement='HOPITAL'
+               AND accepted_hospital.statut IN('VALIDE','ACTIF')
+              WHERE accepted_part.university_campaign_id=c.id
+                AND accepted_part.statut='ACCEPTEE'
+                AND COALESCE(
+                      NULLIF(accepted_part.capacite_acceptee,0),
+                      NULLIF(accepted_part.capacite_allouee,0),
+                      0
+                    )>0
+          )
         ORDER BY c.date_debut,c.id DESC
     ");
     $stmt->execute([$studentId]);
     $managedCampaigns=[];
     foreach($stmt->fetchAll(PDO::FETCH_ASSOC) as $campaign){
+        $hospitals=studentCampaignAcceptedHospitals(
+            $pdo,
+            (int)$campaign['campaign_id']
+        );
         $managedCampaigns[]=[
             'campaign_id'=>(int)$campaign['campaign_id'],
             'academic_enrollment_id'=>(int)$campaign['academic_enrollment_id'],
@@ -499,7 +531,13 @@ try{
             'stage_type'=>['code'=>$campaign['stage_type_code'],'label'=>$campaign['stage_type_label']],
             'mode'=>studentStageTypeMode($campaign['stage_type_code']),
             'promotion'=>['code'=>$campaign['promotion_code'],'name'=>$campaign['promotion'],'level'=>$campaign['niveau']],
-            'program'=>$campaign['filiere'],'hospitals'=>[]
+            'program'=>$campaign['filiere'],
+            'hospitals'=>$hospitals,
+            'hospitals_count'=>count($hospitals),
+            'available_hospitals'=>count(array_filter(
+                $hospitals,
+                static fn(array $hospital):bool=>$hospital['available']===true
+            ))
         ];
     }
 
@@ -512,7 +550,7 @@ try{
     $availablePlaces=0;
 
 
-    foreach($campaigns as $campaign){
+    foreach(array_merge($campaigns,$managedCampaigns) as $campaign){
 
         foreach(
             $campaign['hospitals']

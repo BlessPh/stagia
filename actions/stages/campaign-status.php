@@ -6,6 +6,7 @@
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/permissions.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-campaign.php';
 
 /* Seuls les responsables de l'établissement propriétaire peuvent changer l'état. */
 requireAjaxRole(['ADMIN_ETABLISSEMENT','RESPONSABLE_PEDAGOGIQUE']);
@@ -59,28 +60,13 @@ try{
         if(!(int)$stmt->fetchColumn())
             jsonResponse(false,'Ajoutez au moins une promotion avant ouverture.',[],409);
 
-        /*
-         * D4 :
-         * au moins un hôpital doit avoir accepté avant ouverture
-         */
-        if($campaign['stage_type_code']==='MEDICAL_D4'){
-
-            $stmt=$pdo->prepare("
-                SELECT COUNT(*)
-                FROM stage_campaign_participations
-                WHERE university_campaign_id=?
-                  AND statut='ACCEPTEE'
-            ");
-            $stmt->execute([$id]);
-
-            if(!(int)$stmt->fetchColumn())
-                jsonResponse(
-                    false,
-                    'Une campagne D4 ne peut pas être ouverte avant l’acceptation d’au moins un hôpital.',
-                    [],
-                    409
-                );
-        }
+        if(!campaignHasAcceptedHostCapacity($pdo,$id))
+            jsonResponse(
+                false,
+                'Une campagne ne peut pas être ouverte avant l’acceptation d’au moins un hôpital avec une capacité valide.',
+                [],
+                409
+            );
     }
 
     /* La transition validée est ensuite persistée pour la seule campagne demandée. */
