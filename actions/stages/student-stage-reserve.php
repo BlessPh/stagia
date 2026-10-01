@@ -15,7 +15,7 @@ $motivation=trim((string)($_POST['motivation']??''));
 
 try{
     $student=d4StudentProfile($pdo,$userId);
-    $result=submitD4Application(
+    $result=submitStudentStageApplication(
         $pdo,(int)$student['id'],$userId,$campaignId,$academicId,$participationId,$motivation
     );
     jsonResponse(

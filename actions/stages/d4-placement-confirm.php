@@ -32,7 +32,9 @@ try{
                app.statut application_status,app.campaign_id,
                app.academic_enrollment_id,c.date_debut campaign_start,c.date_fin campaign_end,
                se.student_id,p.id participation_id,p.host_etablissement_id,p.date_debut participation_start,
-               p.date_fin participation_end,p.capacite_acceptee,h.nom host_name,
+               p.date_fin participation_end,
+               COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0)) capacite_retenue,
+               h.nom host_name,
                pl.id placement_id,pl.statut placement_status
         FROM stage_reservations r
         JOIN stage_applications app ON app.id=r.application_id
@@ -40,7 +42,8 @@ try{
         JOIN student_academic_enrollments ae ON ae.id=app.academic_enrollment_id
         JOIN student_enrollments se ON se.id=ae.enrollment_id
         JOIN stage_campaign_participations p ON p.id=r.participation_id AND p.university_campaign_id=c.id
-             AND p.statut='ACCEPTEE' AND COALESCE(p.capacite_acceptee,0)>0
+             AND p.statut='ACCEPTEE'
+             AND COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0),0)>0
         JOIN etablissements h ON h.id=p.host_etablissement_id
         LEFT JOIN stage_placements pl ON pl.reservation_id=r.id
         WHERE r.id=? LIMIT 1 FOR UPDATE

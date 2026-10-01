@@ -21,7 +21,7 @@ Le workflow etudiant actuel couvre les etapes suivantes :
 
 3. Recherche d'opportunites de stage
    - L'etudiant voit les campagnes ouvertes auxquelles il est eligible.
-   - Pour le flux D4 medical, il voit uniquement les offres hospitalieres finalisees par son universite (`capacite_acceptee`).
+   - Il voit uniquement les offres hospitalières retenues avec une capacité positive (`capacite_acceptee` ou `capacite_allouee`).
 
 4. Candidature / reservation
    - L'etudiant choisit une structure d'accueil.
@@ -95,8 +95,8 @@ Les migrations `000009_api_refresh_tokens`, `000010_password_reset_tokens` et `0
 
 | Methode | Endpoint | Fonction | Parametres principaux |
 |---|---|---|---|
-| GET | `/api/v1/student/stage-options` | Offres D4 reservables et campagnes des autres types pilotees par l'universite. | Aucun parametre obligatoire. |
-| POST | `/api/v1/student/reservations` | Cree ou retrouve une candidature D4 et sa reservation temporaire. | `campaign_id`, `academic_enrollment_id`, `participation_id`, `motivation` optionnel. |
+| GET | `/api/v1/student/stage-options` | Campagnes éligibles avec choix d'un hôpital par l'étudiant, sous réserve de confirmation universitaire. | Aucun paramètre obligatoire. |
+| POST | `/api/v1/student/reservations` | Crée ou retrouve une candidature étudiante et sa réservation temporaire, avant décision universitaire. | `campaign_id`, `academic_enrollment_id`, `participation_id`, `motivation` optionnel. |
 | GET | `/api/v1/student/applications` | Liste les candidatures et leur avancement canonique. | Aucun parametre obligatoire. |
 | GET | `/api/v1/student/reservations` | Liste les reservations, expiration et actions permises. | Aucun parametre obligatoire. |
 | POST | `/api/v1/student/reservations/{uuid}/confirm` | Consultation idempotente de la confirmation; ne remplace jamais la decision universitaire. | Aucun corps obligatoire. |
@@ -194,7 +194,7 @@ Ces endpoints utilisent la session PHP, le role `STAGIAIRE` et souvent un token 
 - Connexion mobile avec token Bearer.
 - Tableau de bord.
 - Profil, rattachements et parcours academique partiel.
-- Recherche d'options D4.
+- Recherche des campagnes et hôpitaux éligibles.
 - Reservation de place.
 - Suivi candidatures, reservations, admission et stages.
 - Paiements en lecture, preparation checkout et synchronisation.
@@ -268,8 +268,8 @@ Ces endpoints utilisent la session PHP, le role `STAGIAIRE` et souvent un token 
    - Afficher resume, stats, stage courant.
 
 3. `GET /api/v1/student/stage-options`
-   - Afficher les campagnes D4 reservables.
-   - Afficher separement les autres types avec `reservation_mode=UNIVERSITY_MANAGED`.
+   - Afficher toutes les campagnes réservables et leurs hôpitaux disponibles.
+   - La réservation reste temporaire jusqu'à la décision de l'université.
 
 4. `POST /api/v1/student/reservations`
    - Envoyer `campaign_id`, `academic_enrollment_id`, `participation_id`.

@@ -40,7 +40,8 @@ try{
             c.owner_etablissement_id,
             se.student_id,
             r.id reservation_id,r.statut reservation_statut,
-            p.statut participation_statut,p.frais_requis,p.montant_frais,p.devise,p.capacite_acceptee
+            p.statut participation_statut,p.frais_requis,p.montant_frais,p.devise,
+            COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0)) capacite_retenue
         FROM stage_applications a
         JOIN stage_campaigns c ON c.id=a.campaign_id
         JOIN student_academic_enrollments ae ON ae.id=a.academic_enrollment_id
@@ -88,7 +89,7 @@ try{
     if(!$a['participation_id']||$a['participation_statut']!=='ACCEPTEE')
         throw new RuntimeException("L'hôpital n'est plus retenu pour cette campagne.");
 
-    $capacite=(int)$a['capacite_acceptee'];
+    $capacite=(int)$a['capacite_retenue'];
     if($capacite<=0)throw new RuntimeException('Aucune capacité retenue pour cet hôpital.');
 
     /* Verrou capacité : les anciennes réservations temporaires expirées ne comptent plus. */

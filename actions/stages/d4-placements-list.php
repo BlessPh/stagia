@@ -41,7 +41,9 @@ try{
                    app.id application_id,app.statut application_status,ae.id academic_enrollment_id,
                    sp.id student_id,sp.stagia_code,sp.nom,sp.postnom,sp.prenom,
                    pr.id promotion_id,pr.code promotion_code,pr.nom promotion_name,al.code level_code,
-                   p.id participation_id,p.host_etablissement_id,p.capacite_acceptee,p.frais_requis,p.montant_frais,p.devise,
+                   p.id participation_id,p.host_etablissement_id,
+                   COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0)) capacite_retenue,
+                   p.frais_requis,p.montant_frais,p.devise,
                    h.code host_code,h.nom host_name,
                    pl.id placement_id,pl.statut placement_status,pl.confirmed_at placement_confirmed_at,pl.university_confirmed_at
             FROM stage_reservations r
@@ -66,7 +68,7 @@ try{
             $byHospital[$hid]??=[
                 'host_etablissement_id'=>$hid,'host_code'=>$x['host_code'],'host_name'=>$x['host_name'],
                 'selected_count'=>0,'ready_count'=>0,'placed_count'=>0,
-                'allocation'=>(int)$x['capacite_acceptee'],'ready_reservation_ids'=>[]
+                'allocation'=>(int)$x['capacite_retenue'],'ready_reservation_ids'=>[]
             ];
 
             if($x['placement_status']!=='CONFIRME')$byHospital[$hid]['selected_count']++;

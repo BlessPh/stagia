@@ -223,7 +223,7 @@ function stagiaNotificationsBuild(PDO $pdo):array{
                       JOIN etablissements h ON h.id=sp.host_etablissement_id
                       WHERE sp.university_campaign_id=c.id
                         AND sp.statut='ACCEPTEE'
-                        AND COALESCE(sp.capacite_acceptee,0)>0
+                        AND COALESCE(NULLIF(sp.capacite_acceptee,0),NULLIF(sp.capacite_allouee,0),0)>0
                         AND h.statut IN('VALIDE','ACTIF')
                   )
             ";

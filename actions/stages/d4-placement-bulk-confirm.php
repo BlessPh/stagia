@@ -41,11 +41,13 @@ try{
     if(!$campaign)throw new RuntimeException('Session introuvable pour cette université.');
 
     $s=$pdo->prepare("
-        SELECT p.id,p.capacite_acceptee,h.nom host_name
+        SELECT p.id,
+               COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0)) capacite_retenue,
+               h.nom host_name
         FROM stage_campaign_participations p
         JOIN etablissements h ON h.id=p.host_etablissement_id
         WHERE p.university_campaign_id=? AND p.host_etablissement_id=? AND p.statut='ACCEPTEE'
-          AND COALESCE(p.capacite_acceptee,0)>0
+          AND COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0),0)>0
         LIMIT 1 FOR UPDATE
     ");
     $s->execute([$campaignId,$hostId]);$participation=$s->fetch(PDO::FETCH_ASSOC);
@@ -53,7 +55,7 @@ try{
 
     $s=$pdo->prepare("SELECT COUNT(*) FROM stage_placements WHERE campaign_id=? AND host_etablissement_id=? AND statut='CONFIRME'");
     $s->execute([$campaignId,$hostId]);
-    $available=max(0,(int)$participation['capacite_acceptee']-(int)$s->fetchColumn());
+    $available=max(0,(int)$participation['capacite_retenue']-(int)$s->fetchColumn());
 
     /* Le lot entier est refusé immédiatement s'il dépasse le quota de l'hôpital. */
     if(count($ids)>$available)

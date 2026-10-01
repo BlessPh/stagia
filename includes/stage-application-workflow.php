@@ -3,11 +3,11 @@
 require_once __DIR__.'/stage-d4-reservation.php';
 
 /**
- * Crée le choix D4 canonique utilisé par le Web et l'API mobile.
+ * Crée le choix de stage canonique utilisé par le Web et l'API mobile.
  * La candidature reste SOUMISE et la réservation temporaire jusqu'à la
  * décision explicite de l'université.
  */
-function submitD4Application(
+function submitStudentStageApplication(
     PDO $pdo,
     int $studentId,
     int $actorUserId,
@@ -17,7 +17,7 @@ function submitD4Application(
     string $motivation=''
 ):array{
     if($studentId<1||$campaignId<1||$academicEnrollmentId<1||$participationId<1){
-        throw new InvalidArgumentException('Sélection D4 invalide.');
+        throw new InvalidArgumentException('Sélection de stage invalide.');
     }
     if(mb_strlen($motivation)>1000){
         throw new InvalidArgumentException('La motivation ne peut pas dépasser 1000 caractères.');
@@ -37,9 +37,10 @@ function submitD4Application(
         if(!$enrollment)throw new RuntimeException('Inscription académique active introuvable.');
 
         $stmt=$pdo->prepare("
-            SELECT c.id,c.stage_type_id,c.code,c.titre,c.date_debut,c.date_fin
+            SELECT c.id,c.stage_type_id,c.code,c.titre,c.date_debut,c.date_fin,
+                   st.code stage_type_code
             FROM stage_campaigns c
-            INNER JOIN stage_types st ON st.id=c.stage_type_id AND st.code='MEDICAL_D4'
+            INNER JOIN stage_types st ON st.id=c.stage_type_id AND st.actif=1
             INNER JOIN stage_campaign_promotions cp ON cp.campaign_id=c.id AND cp.promotion_id=?
             WHERE c.id=? AND c.owner_etablissement_id=? AND c.annee_academique_id=?
               AND c.type_campagne='UNIVERSITAIRE' AND c.statut='OUVERTE'
@@ -49,10 +50,12 @@ function submitD4Application(
             $enrollment['promotion_id'],$campaignId,$enrollment['etablissement_id'],$enrollment['annee_academique_id']
         ]);
         $campaign=$stmt->fetch(PDO::FETCH_ASSOC);
-        if(!$campaign)throw new RuntimeException("Vous n'êtes pas éligible à cette campagne D4 ou elle n'est plus ouverte.");
+        if(!$campaign)throw new RuntimeException("Vous n'êtes pas éligible à cette campagne ou elle n'est plus ouverte.");
 
         $stmt=$pdo->prepare("
-            SELECT p.id,p.host_etablissement_id,p.capacite_acceptee,p.frais_requis,
+            SELECT p.id,p.host_etablissement_id,
+                   COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0)) capacity_committed,
+                   p.frais_requis,
                    p.montant_frais,p.devise,h.code host_code,h.nom host_name
             FROM stage_campaign_participations p
             INNER JOIN etablissements h ON h.id=p.host_etablissement_id
@@ -61,7 +64,7 @@ function submitD4Application(
                 AND hc.statut NOT IN('ANNULEE','TERMINEE')
             INNER JOIN stage_capacity_pools cp ON cp.host_campaign_id=hc.id
             WHERE p.id=? AND p.university_campaign_id=? AND p.statut='ACCEPTEE'
-              AND p.capacite_acceptee IS NOT NULL AND p.capacite_acceptee>0
+              AND COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0),0)>0
             LIMIT 1 FOR UPDATE
         ");
         $stmt->execute([$participationId,$campaignId]);
@@ -120,7 +123,7 @@ function submitD4Application(
         if($stmt->fetchColumn())throw new RuntimeException('Vous êtes déjà engagé dans cette campagne.');
 
         $reserved=d4ActiveReservationCount($pdo,$participationId);
-        $capacity=(int)$participation['capacite_acceptee'];
+        $capacity=(int)$participation['capacity_committed'];
         if($reserved>=$capacity)throw new RuntimeException("Les {$capacity} place(s) retenues par votre université sont actuellement occupées.");
 
         $stmt=$pdo->prepare("
@@ -209,4 +212,25 @@ function submitD4Application(
         if($pdo->inTransaction())$pdo->rollBack();
         throw $e;
     }
+}
+
+/** Compatibilité avec les anciens contrôleurs et intégrations nommés D4. */
+function submitD4Application(
+    PDO $pdo,
+    int $studentId,
+    int $actorUserId,
+    int $campaignId,
+    int $academicEnrollmentId,
+    int $participationId,
+    string $motivation=''
+):array{
+    return submitStudentStageApplication(
+        $pdo,
+        $studentId,
+        $actorUserId,
+        $campaignId,
+        $academicEnrollmentId,
+        $participationId,
+        $motivation
+    );
 }

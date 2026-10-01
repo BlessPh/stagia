@@ -13,7 +13,7 @@ $participationId=(int)($input['participation_id']??0);
 $motivation=trim((string)($input['motivation']??''));
 
 try{
-    $result=submitD4Application(
+    $result=submitStudentStageApplication(
         $pdo,
         (int)$student['student_id'],
         (int)$student['user_id'],

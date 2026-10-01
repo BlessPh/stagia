@@ -47,8 +47,10 @@ function studentStageTypeMode(string $stageTypeCode):array{
     $isD4=$stageTypeCode==='MEDICAL_D4';
     return [
         'is_d4'=>$isD4,
-        'self_reservation_allowed'=>$isD4,
-        'reservation_mode'=>$isD4?'STUDENT_D4_CHOICE':'UNIVERSITY_MANAGED'
+        'self_reservation_allowed'=>true,
+        'reservation_mode'=>$isD4
+            ?'STUDENT_D4_CHOICE'
+            :'STUDENT_CHOICE_UNIVERSITY_CONFIRMATION'
     ];
 }
 

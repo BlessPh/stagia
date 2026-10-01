@@ -24,7 +24,8 @@ try{
             sp.stagia_code,sp.nom,sp.postnom,sp.prenom,se.matricule,
             p.nom promotion,f.nom filiere,
             r.id reservation_id,r.statut reservation_statut,r.expires_at,r.confirmed_at,
-            hp.frais_requis,hp.montant_frais,hp.devise,hp.capacite_acceptee,
+            hp.frais_requis,hp.montant_frais,hp.devise,
+            COALESCE(NULLIF(hp.capacite_acceptee,0),NULLIF(hp.capacite_allouee,0)) capacite_acceptee,
             i.reference invoice_reference,i.statut invoice_statut,i.montant invoice_amount
         FROM stage_applications a
         JOIN stage_campaigns c ON c.id=a.campaign_id AND c.owner_etablissement_id=?

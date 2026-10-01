@@ -43,7 +43,7 @@ try {
     $managedCampaigns = @($response.data.university_managed_campaigns)
 
     Write-Output ''
-    Write-Output "Campagnes D4 reservables : $($d4Campaigns.Count)"
+    Write-Output "Campagnes reservables par l etudiant : $($d4Campaigns.Count)"
     foreach ($campaign in $d4Campaigns) {
         [pscustomobject]@{
             Id = $campaign.campaign_id

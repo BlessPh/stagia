@@ -49,6 +49,10 @@ foreach (array_merge($d4Campaigns, $managedCampaigns) as $campaign) {
             'La capacité hospitalière exposée est positive'
         );
     }
+    $suite->ok(
+        ($campaign['mode']['self_reservation_allowed'] ?? false) === true,
+        'La campagne ' . ($campaign['code'] ?? '?') . ' permet une demande étudiante'
+    );
 }
 
 $refresh = $client->request('POST', '/refresh-token', ['refresh_token' => $tokens['refresh_token']]);

@@ -1,9 +1,9 @@
-# Workflow canonique de candidature D4
+# Workflow canonique de candidature étudiant
 
 ## Séquence métier
 
 ```text
-Offre hospitalière finalisée (capacite_acceptee)
+Offre hospitalière retenue (capacite_acceptee ou capacite_allouee)
 → Candidature SOUMISE
 → Réservation RESERVEE_TEMPORAIREMENT
 → Décision universitaire
@@ -20,10 +20,10 @@ Offre hospitalière finalisée (capacite_acceptee)
 
 ## Invariants
 
-1. Une offre n'est visible et réservable que si la participation est `ACCEPTEE` et si `capacite_acceptee > 0`.
-2. `capacite_proposee` et `capacite_allouee` décrivent la négociation hospitalière. Seule `capacite_acceptee`, finalisée par l'université, limite les réservations étudiantes.
+1. Une offre n'est visible et réservable que si la participation est `ACCEPTEE` et si sa capacité retenue est positive.
+2. La capacité retenue provient de `capacite_acceptee` dans le flux finalisé historique ou de `capacite_allouee` dans le flux générique d'accueil. Une simple `capacite_proposee` ne suffit pas.
 3. La durée d'une réservation temporaire provient de la politique `reservation_hold_minutes` du type de stage, avec 30 minutes par défaut.
-4. Le mobile et le Web appellent `submitD4Application()` : ils créent ou réactivent la même candidature `SOUMISE` et la même réservation `RESERVEE_TEMPORAIREMENT`.
+4. Le mobile et le Web appellent `submitStudentStageApplication()` : ils créent ou réactivent la même candidature `SOUMISE` et la même réservation `RESERVEE_TEMPORAIREMENT`.
 5. Seule la décision universitaire passe une candidature à `ACCEPTEE` ou `REFUSEE`.
 6. Aucun paiement ne peut être préparé ou confirmé avant une décision `ACCEPTEE`.
 7. Un placement exige une candidature `ACCEPTEE` et une réservation `CONFIRMEE`.

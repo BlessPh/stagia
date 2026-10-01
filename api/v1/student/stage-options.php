@@ -514,6 +514,45 @@ try{
                       0
                     )>0
           )
+          AND NOT EXISTS(
+              SELECT 1
+              FROM stage_applications existing_application
+              LEFT JOIN stage_reservations existing_reservation
+                ON existing_reservation.application_id=existing_application.id
+              LEFT JOIN stage_placements existing_placement
+                ON existing_placement.reservation_id=existing_reservation.id
+               AND existing_placement.statut='CONFIRME'
+              LEFT JOIN stage_admissions existing_admission
+                ON existing_admission.reservation_id=existing_reservation.id
+               AND existing_admission.statut<>'ANNULE'
+              LEFT JOIN stage_assignments existing_assignment
+                ON existing_assignment.admission_id=existing_admission.id
+              WHERE existing_application.campaign_id=c.id
+                AND existing_application.academic_enrollment_id=ae.id
+                AND (
+                    (
+                        existing_reservation.statut='RESERVEE_TEMPORAIREMENT'
+                        AND (
+                            existing_reservation.expires_at IS NULL
+                            OR existing_reservation.expires_at>NOW()
+                        )
+                    )
+                    OR existing_reservation.statut IN('EN_ATTENTE_PAIEMENT','CONFIRMEE')
+                    OR existing_placement.id IS NOT NULL
+                    OR existing_admission.id IS NOT NULL
+                    OR (
+                        existing_assignment.id IS NOT NULL
+                        AND existing_assignment.statut<>'ANNULEE'
+                    )
+                )
+          )
+          AND NOT EXISTS(
+              SELECT 1
+              FROM stage_completions existing_completion
+              WHERE existing_completion.campaign_id=c.id
+                AND existing_completion.student_id=se.student_id
+                AND existing_completion.statut IN('EN_PREPARATION','PRET','VALIDE')
+          )
         ORDER BY c.date_debut,c.id DESC
     ");
     $stmt->execute([$studentId]);
@@ -540,6 +579,12 @@ try{
             ))
         ];
     }
+
+    /* Toutes les campagnes ci-dessus permettent maintenant le choix d'un
+       hôpital par l'étudiant. La clé historique reste présente, mais vide,
+       pour ne pas casser les clients qui désérialisent encore la réponse. */
+    $campaigns=array_merge($campaigns,$managedCampaigns);
+    $managedCampaigns=[];
 
     /* =====================================================
        STATISTIQUES
