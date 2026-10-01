@@ -48,10 +48,26 @@ foreach (array_merge($d4Campaigns, $managedCampaigns) as $campaign) {
             (int) ($hospital['capacity'] ?? 0) > 0,
             'La capacité hospitalière exposée est positive'
         );
+        $suite->ok(
+            array_key_exists('phone', $hospital['hospital'] ?? []),
+            'Le numéro de contact hospitalier est exposé'
+        );
+        $suite->ok(
+            is_array($hospital['hospital']['services'] ?? null),
+            'La liste des services hospitaliers est exposée'
+        );
     }
     $suite->ok(
         ($campaign['mode']['self_reservation_allowed'] ?? false) === true,
         'La campagne ' . ($campaign['code'] ?? '?') . ' permet une demande étudiante'
+    );
+}
+
+$reservationsResponse = $client->request('GET', '/student/reservations', null, $access);
+foreach ($reservationsResponse['json']['data']['items'] ?? [] as $reservation) {
+    $suite->ok(
+        !empty($reservation['workflow_status']) && !empty($reservation['workflow_message']),
+        'La réservation possède un statut et un message affichables'
     );
 }
 

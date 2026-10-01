@@ -37,6 +37,7 @@ try{
         $item['stage_type']=['code'=>$item['stage_type_code'],'label'=>$item['stage_type_label']];
         $item['mode']=studentStageTypeMode($item['stage_type_code']);
         $item['workflow_status']=studentStageWorkflowStatus($item);
+        $item['workflow_message']=studentStageWorkflowMessage($item['workflow_status']);
         $item['taux_presence']=$item['taux_presence']!==null?(float)$item['taux_presence']:null;
         $item['note_finale']=$item['note_finale']!==null?(float)$item['note_finale']:null;
         unset($item['stage_type_code'],$item['stage_type_label']);

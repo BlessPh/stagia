@@ -9,7 +9,8 @@ $student=requireApiStudent($pdo);$studentId=(int)$student['student_id'];
 try{
     expireStudentTemporaryReservations($pdo,$studentId);
     $stmt=$pdo->prepare("
-        SELECT r.uuid,r.statut,r.expires_at,r.confirmed_at,r.cancelled_at,r.created_at,
+        SELECT r.uuid,r.statut,r.statut reservation_status,
+               r.expires_at,r.confirmed_at,r.cancelled_at,r.created_at,
                a.uuid application_uuid,a.statut application_status,
                c.code campaign_code,c.titre campaign_title,c.date_debut campaign_start,c.date_fin campaign_end,
                st.code stage_type_code,st.libelle stage_type_label,
@@ -44,6 +45,7 @@ try{
         $item['stage_type']=['code'=>$item['stage_type_code'],'label'=>$item['stage_type_label']];
         $item['mode']=studentStageTypeMode($item['stage_type_code']);
         $item['workflow_status']=studentStageWorkflowStatus($item);
+        $item['workflow_message']=studentStageWorkflowMessage($item['workflow_status']);
         $item['can_confirm']=false;
         $item['confirmation_managed_by']=$item['statut']==='EN_ATTENTE_PAIEMENT'?'PAYMENT':'UNIVERSITY';
         $item['can_cancel']=!$item['placement_uuid']&&!$item['admission_uuid']&&(int)$item['validated_payment_count']===0
@@ -51,7 +53,7 @@ try{
             &&!in_array($item['application_status'],['REFUSEE','ANNULEE'],true);
         $bucket=['RESERVEE_TEMPORAIREMENT'=>'temporary','EN_ATTENTE_PAIEMENT'=>'waiting_payment','CONFIRMEE'=>'confirmed','EXPIREE'=>'expired','ANNULEE'=>'cancelled'][$item['statut']]??null;
         if($bucket)$stats[$bucket]++;
-        unset($item['stage_type_code'],$item['stage_type_label'],$item['validated_payment_count']);
+        unset($item['stage_type_code'],$item['stage_type_label'],$item['validated_payment_count'],$item['reservation_status']);
     }unset($item);
     apiResponse(true,'',['items'=>$items,'stats'=>$stats]);
 }catch(Throwable $e){

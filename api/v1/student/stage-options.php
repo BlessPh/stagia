@@ -236,6 +236,8 @@ try{
 
                 h.nom AS hospital_name,
 
+                h.telephone AS hospital_phone,
+
                 h.ville,
 
                 h.province
@@ -357,11 +359,20 @@ try{
                     'name'=>
                         $participation['hospital_name'],
 
+                    'phone'=>
+                        $participation['hospital_phone'],
+
                     'city'=>
                         $participation['ville'],
 
                     'province'=>
-                        $participation['province']
+                        $participation['province'],
+
+                    'services'=>
+                        studentHospitalAvailableServices(
+                            $pdo,
+                            (int)$participation['host_etablissement_id']
+                        )
 
                 ],
 

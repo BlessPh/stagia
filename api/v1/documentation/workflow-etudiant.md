@@ -95,13 +95,15 @@ Les migrations `000009_api_refresh_tokens`, `000010_password_reset_tokens` et `0
 
 | Methode | Endpoint | Fonction | Parametres principaux |
 |---|---|---|---|
-| GET | `/api/v1/student/stage-options` | Campagnes éligibles avec choix d'un hôpital par l'étudiant, sous réserve de confirmation universitaire. | Aucun paramètre obligatoire. |
+| GET | `/api/v1/student/stage-options` | Campagnes éligibles avec choix d'un hôpital par l'étudiant, coordonnées et services actifs de l'hôpital, sous réserve de confirmation universitaire. | Aucun paramètre obligatoire. |
 | POST | `/api/v1/student/reservations` | Crée ou retrouve une candidature étudiante et sa réservation temporaire, avant décision universitaire. | `campaign_id`, `academic_enrollment_id`, `participation_id`, `motivation` optionnel. |
 | GET | `/api/v1/student/applications` | Liste les candidatures et leur avancement canonique. | Aucun parametre obligatoire. |
 | GET | `/api/v1/student/reservations` | Liste les reservations, expiration et actions permises. | Aucun parametre obligatoire. |
 | POST | `/api/v1/student/reservations/{uuid}/confirm` | Consultation idempotente de la confirmation; ne remplace jamais la decision universitaire. | Aucun corps obligatoire. |
 | POST | `/api/v1/student/reservations/{uuid}/cancel` | Annule avant placement si aucun paiement valide ne necessite de remboursement. | Aucun corps obligatoire. |
 | GET | `/api/v1/student/admissions` | Suit placement, admission, affectation et statut de stage. | `reservation_uuid` optionnel. |
+
+Les réponses de candidatures, réservations et admissions contiennent `workflow_status` et `workflow_message`. Après approbation universitaire d'une réservation gratuite et avant placement, la valeur est `PLACEMENT_UNIVERSITAIRE_EN_ATTENTE` avec le message « Réservation approuvée, en attente de l'affectation par l'université. »
 | GET | `/api/v1/student/stages.php` | Liste les stages reels et statistiques. | Aucun parametre obligatoire. |
 
 ### Paiements

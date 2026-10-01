@@ -43,6 +43,25 @@ function studentStageWorkflowStatus(array $row):string{
     return $application!==''?$application:($reservation!==''?$reservation:'INCONNU');
 }
 
+/** Libellé directement affichable par le client mobile pour l'état du parcours. */
+function studentStageWorkflowMessage(string $status):string{
+    $messages=[
+        'DECISION_UNIVERSITAIRE_EN_ATTENTE'=>"Réservation envoyée, en attente de l'approbation de l'université.",
+        'EN_ATTENTE_PAIEMENT'=>'Réservation approuvée, en attente du paiement.',
+        'PLACEMENT_UNIVERSITAIRE_EN_ATTENTE'=>"Réservation approuvée, en attente de l'affectation par l'université.",
+        'ADMISSION_HOSPITALIERE_EN_ATTENTE'=>"Affectation confirmée, en attente de l'admission par l'hôpital.",
+        'AFFECTATION_EN_ATTENTE'=>"Admission enregistrée, en attente de l'affectation à un service.",
+        'STAGE_PLANIFIE'=>'Stage planifié.',
+        'STAGE_EN_COURS'=>'Stage en cours.',
+        'STAGE_TERMINE'=>'Stage terminé.',
+        'STAGE_VALIDE'=>'Stage validé.',
+        'CANDIDATURE_REFUSEE'=>"Réservation refusée par l'université.",
+        'ANNULEE'=>'Réservation annulée.',
+        'RESERVATION_EXPIREE'=>'Réservation temporaire expirée.'
+    ];
+    return $messages[$status]??'Statut du stage mis à jour.';
+}
+
 function studentStageTypeMode(string $stageTypeCode):array{
     $isD4=$stageTypeCode==='MEDICAL_D4';
     return [
@@ -52,6 +71,44 @@ function studentStageTypeMode(string $stageTypeCode):array{
             ?'STUDENT_D4_CHOICE'
             :'STUDENT_CHOICE_UNIVERSITY_CONFIRMATION'
     ];
+}
+
+/** Services et unités actifs qu'un hôpital peut présenter aux étudiants. */
+function studentHospitalAvailableServices(PDO $pdo,int $hospitalId):array{
+    static $cache=[];
+    $cacheKey=spl_object_id($pdo).':'.$hospitalId;
+    if(array_key_exists($cacheKey,$cache))return $cache[$cacheKey];
+
+    $stmt=$pdo->prepare("
+        SELECT unit.id,unit.code,unit.nom,unit.type,unit.description,unit.capacite,
+               parent.code parent_code,parent.nom parent_name
+        FROM host_units unit
+        LEFT JOIN host_units parent
+          ON parent.id=unit.parent_id
+         AND parent.host_etablissement_id=unit.host_etablissement_id
+        WHERE unit.host_etablissement_id=?
+          AND unit.actif=1
+          AND UPPER(TRIM(unit.type)) IN('SERVICE','UNITE','UNITÉ')
+        ORDER BY COALESCE(parent.nom,''),unit.nom,unit.id
+    ");
+    $stmt->execute([$hospitalId]);
+
+    $services=[];
+    foreach($stmt->fetchAll(PDO::FETCH_ASSOC) as $service){
+        $services[]=[
+            'id'=>(int)$service['id'],
+            'code'=>$service['code'],
+            'name'=>$service['nom'],
+            'type'=>$service['type'],
+            'description'=>$service['description'],
+            'capacity'=>$service['capacite']!==null?(int)$service['capacite']:null,
+            'parent'=>$service['parent_code']!==null||$service['parent_name']!==null
+                ?['code'=>$service['parent_code'],'name'=>$service['parent_name']]
+                :null
+        ];
+    }
+    $cache[$cacheKey]=$services;
+    return $services;
 }
 
 /**
@@ -76,6 +133,7 @@ function studentCampaignAcceptedHospitals(PDO $pdo,int $campaignId):array{
             part.conditions,
             h.code AS hospital_code,
             h.nom AS hospital_name,
+            h.telephone AS hospital_phone,
             h.ville,
             h.province,
             (
@@ -126,8 +184,13 @@ function studentCampaignAcceptedHospitals(PDO $pdo,int $campaignId):array{
             'hospital'=>[
                 'code'=>$participation['hospital_code'],
                 'name'=>$participation['hospital_name'],
+                'phone'=>$participation['hospital_phone'],
                 'city'=>$participation['ville'],
-                'province'=>$participation['province']
+                'province'=>$participation['province'],
+                'services'=>studentHospitalAvailableServices(
+                    $pdo,
+                    (int)$participation['host_etablissement_id']
+                )
             ],
             'capacity'=>$capacity,
             'used_places'=>$used,

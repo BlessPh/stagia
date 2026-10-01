@@ -52,7 +52,8 @@ try{
             'mode'=>studentStageTypeMode($row['stage_type_code']),
             'hospital'=>['code'=>$row['hospital_code'],'name'=>$row['hospital_name'],'city'=>$row['hospital_city'],'province'=>$row['hospital_province']],
             'completion'=>['status'=>$row['completion_status'],'attendance_rate'=>$row['taux_presence']!==null?(float)$row['taux_presence']:null,'final_score'=>$row['note_finale']!==null?(float)$row['note_finale']:null],
-            'workflow_status'=>$workflow
+            'workflow_status'=>$workflow,
+            'workflow_message'=>studentStageWorkflowMessage($workflow)
         ];
         $items[]=$item;$stats['total']++;
         $bucket=[

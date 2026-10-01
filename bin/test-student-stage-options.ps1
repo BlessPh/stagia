@@ -54,6 +54,15 @@ try {
             Hopitaux = @($campaign.hospitals).Count
             HopitauxDisponibles = $campaign.available_hospitals
         } | Format-List
+
+        foreach ($hospitalOption in @($campaign.hospitals)) {
+            [pscustomobject]@{
+                Hopital = $hospitalOption.hospital.name
+                Telephone = $hospitalOption.hospital.phone
+                PlacesDisponibles = $hospitalOption.available_places
+                Services = @($hospitalOption.hospital.services | ForEach-Object { $_.name }) -join ', '
+            } | Format-List
+        }
     }
 
     Write-Output "Campagnes gerees par l universite : $($managedCampaigns.Count)"
