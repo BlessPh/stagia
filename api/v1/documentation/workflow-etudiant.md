@@ -88,7 +88,7 @@ Les migrations `000009_api_refresh_tokens`, `000010_password_reset_tokens` et `0
 |---|---|---|---|
 | GET | `/api/v1/student/dashboard.php` | Resume etudiant : stats candidatures, reservations, stages, documents, stage courant. | Fonctionnel et complet pour un tableau de bord mobile. |
 | GET | `/api/v1/student/profile` | Profil etudiant + rattachement actif. | Authentification Bearer et role `STAGIAIRE` obligatoires. |
-| GET | `/api/v1/student/enrollments` | Liste les rattachements universitaires de l'etudiant. | Authentification Bearer et controle du profil etudiant actif. |
+| GET | `/api/v1/student/enrollments` | Liste lisible des rattachements : universite, coordonnees, unite academique, departement, filiere, specialite et situation courante. | Les niveaux facultatifs du modele academique sont retournes a `null`. |
 | GET | `/api/v1/student/academic-path?enrollment_id=...` | Historique structure par annee academique (`academic_years`) ; universite, faculte, departement et filiere sont retournes une seule fois. | Verifie que le rattachement appartient a l'etudiant Bearer. |
 
 ### Stage, candidature et reservation

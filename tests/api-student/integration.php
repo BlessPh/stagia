@@ -40,6 +40,19 @@ foreach ([
 $enrollmentsResponse = $client->request('GET', '/student/enrollments', null, $access);
 $enrollments = $enrollmentsResponse['json']['data']['items'] ?? [];
 if ($enrollments) {
+    $firstEnrollment = $enrollments[0];
+    $suite->ok(!empty($firstEnrollment['university']['name']), 'Le rattachement expose le nom de l universite');
+    $suite->ok(isset($firstEnrollment['university']['contact']), 'Les coordonnees de l universite sont structurees');
+    $suite->ok(isset($firstEnrollment['university']['location']), 'La localisation de l universite est structuree');
+    $suite->ok(isset($firstEnrollment['academic_structure']), 'La structure academique est presente');
+    foreach (['academic_unit', 'department', 'program', 'specialty'] as $level) {
+        $suite->ok(
+            array_key_exists($level, $firstEnrollment['academic_structure']),
+            "Le niveau academique {$level} est explicite"
+        );
+    }
+    $suite->ok(array_key_exists('current_academic', $firstEnrollment), 'La situation academique courante est presente');
+
     $enrollmentId = (int) $enrollments[0]['enrollment_id'];
     $academicPath = $client->request(
         'GET',
