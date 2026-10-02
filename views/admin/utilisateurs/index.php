@@ -97,11 +97,34 @@ require_once __DIR__.'/../../../includes/app-header.php';
 </div></div>
 </div>
 
+<div class="modal fade" id="resendInvitationModal" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow">
+<div class="modal-header">
+    <h5 class="modal-title"><i class="bi bi-envelope-arrow-up me-2"></i>Renvoyer l’invitation</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+</div>
+<div class="modal-body">
+    <p class="mb-2">Une nouvelle invitation d’activation sera envoyée à :</p>
+    <div class="alert alert-light border mb-0">
+        <strong id="resendUserName"></strong>
+        <span id="resendUserEmail" class="d-block text-muted"></span>
+    </div>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button>
+    <button type="button" class="btn btn-primary-stagia" id="confirmResendBtn">
+        <i class="bi bi-send me-1"></i> Confirmer l’envoi
+    </button>
+</div>
+</div></div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
-const BASE_URL='<?= BASE_URL ?>',$=id=>document.getElementById(id),modal=new bootstrap.Modal($('userModal')),form=$('userForm'),esc=STAGIA.escape;
+const BASE_URL='<?= BASE_URL ?>',$=id=>document.getElementById(id),modal=new bootstrap.Modal($('userModal')),
+      resendModal=new bootstrap.Modal($('resendInvitationModal')),form=$('userForm'),esc=STAGIA.escape;
 const csrf='<?= $_SESSION['csrf'] ?>';
-let users=[],roles=[],etablissements=[],timer=null;
+let users=[],roles=[],etablissements=[],timer=null,pendingResendUser=null;
 
 function badge(status){
     if(status==='ACTIF')return '<span class="badge bg-success">Actif</span>';
@@ -142,16 +165,21 @@ function render(){
         <td>${badge(u.statut_compte)}</td>
         <td>${u.derniere_connexion?esc(new Date(u.derniere_connexion.replace(' ','T')).toLocaleString('fr-FR')):'Jamais'}</td>
         <td class="text-center">
-            <button class="btn btn-sm btn-outline-primary edit-user" data-id="${u.id}" title="Modifier"><i class="bi bi-pencil"></i></button>
-            ${u.statut_compte==='A_ACTIVER'?`<button class="btn btn-sm btn-outline-primary resend-user" data-id="${u.id}" title="Renvoyer l'invitation"><i class="bi bi-envelope-arrow-up"></i></button>`:''}
-            ${u.statut_compte!=='A_ACTIVER'?`<button class="btn btn-sm btn-outline-primary status-user" data-id="${u.id}" data-status="${u.statut_compte}" title="${u.statut_compte==='ACTIF'?'Suspendre':'Réactiver'}"><i class="bi bi-${u.statut_compte==='ACTIF'?'person-dash':'person-check'}"></i></button>`:''}
+            <button type="button" class="btn btn-sm btn-outline-primary edit-user" data-id="${u.id}" title="Modifier"><i class="bi bi-pencil"></i></button>
+            ${u.statut_compte==='A_ACTIVER'?`<button type="button" class="btn btn-sm btn-outline-primary resend-user" data-id="${u.id}" title="Renvoyer l'invitation"><i class="bi bi-envelope-arrow-up"></i></button>`:''}
+            ${u.statut_compte!=='A_ACTIVER'?`<button type="button" class="btn btn-sm btn-outline-primary status-user" data-id="${u.id}" data-status="${u.statut_compte}" title="${u.statut_compte==='ACTIF'?'Suspendre':'Réactiver'}"><i class="bi bi-${u.statut_compte==='ACTIF'?'person-dash':'person-check'}"></i></button>`:''}
         </td>
     </tr>`).join(''):'<tr><td colspan="7" class="text-center py-5 text-muted">Aucun utilisateur trouvé.</td></tr>';
-
-    document.querySelectorAll('.edit-user').forEach(b=>b.onclick=()=>editUser(users.find(x=>Number(x.id)===Number(b.dataset.id))));
-    document.querySelectorAll('.resend-user').forEach(b=>b.onclick=()=>resend(Number(b.dataset.id)));
-    document.querySelectorAll('.status-user').forEach(b=>b.onclick=()=>toggleStatus(Number(b.dataset.id),b.dataset.status));
 }
+
+$('usersBody').addEventListener('click',event=>{
+    const button=event.target.closest('button');
+    if(!button||!$('usersBody').contains(button))return;
+    const user=users.find(x=>Number(x.id)===Number(button.dataset.id));
+    if(button.classList.contains('edit-user'))editUser(user);
+    if(button.classList.contains('resend-user'))openResendModal(user);
+    if(button.classList.contains('status-user'))toggleStatus(Number(button.dataset.id),button.dataset.status);
+});
 
 function fillCreateSelects(){
     $('userRole').innerHTML='<option value="">Sélectionner...</option>'+roles.map(r=>`<option value="${r.id}" data-code="${r.code}">${esc(r.nom)}</option>`).join('');
@@ -228,11 +256,30 @@ async function toggleStatus(id,status){
     try{const r=await STAGIA.post(BASE_URL+'/actions/admin/utilisateurs/status.php',d);STAGIA.toast(r.message);await load();}catch(e){STAGIA.toast(e.message,'danger');}
 }
 
-async function resend(id){
-    if(!STAGIA.confirm("Renvoyer une nouvelle invitation d'activation ?"))return;
-    const d=new FormData();d.append('csrf',csrf);d.append('id',id);
-    try{const r=await STAGIA.post(BASE_URL+'/actions/admin/utilisateurs/resend-activation.php',d);STAGIA.toast(r.message);await load();}catch(e){STAGIA.toast(e.message,'danger');}
+function openResendModal(user){
+    if(!user)return;
+    pendingResendUser=user;
+    $('resendUserName').textContent=[user.prenom,user.nom,user.postnom].filter(Boolean).join(' ');
+    $('resendUserEmail').textContent=user.email||'Adresse e-mail absente';
+    resendModal.show();
 }
+
+$('confirmResendBtn').onclick=async()=>{
+    if(!pendingResendUser)return;
+    const button=$('confirmResendBtn');
+    const d=new FormData();d.append('csrf',csrf);d.append('id',String(pendingResendUser.id));
+    STAGIA.loading(button,true);
+    try{
+        const r=await STAGIA.post(BASE_URL+'/actions/admin/utilisateurs/resend-activation.php',d);
+        resendModal.hide();pendingResendUser=null;
+        STAGIA.toast(r.message);await load();
+    }catch(error){
+        console.error('[RENVOI INVITATION]',error);
+        STAGIA.toast(error.message,'danger');
+    }finally{
+        STAGIA.loading(button,false);
+    }
+};
 
 ['roleFilter','etabFilter','statusFilter'].forEach(id=>$(id).onchange=load);
 $('searchInput').oninput=()=>{clearTimeout(timer);timer=setTimeout(load,300);};

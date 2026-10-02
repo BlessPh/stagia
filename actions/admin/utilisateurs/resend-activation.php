@@ -13,6 +13,8 @@ $id=(int)($_POST['id']??0);$eid=$super?0:(int)currentEtablissementId($pdo);
 if(!$super&&!$eid)jsonResponse(false,'Aucun établissement associé à votre compte.',[],403);
 if(!$id)jsonResponse(false,'Utilisateur invalide.',[],422);
 
+error_log('[USER RESEND] Demande recue pour utilisateur #'.$id.' par utilisateur #'.(int)($_SESSION['user_id']??0));
+
 $s=$pdo->prepare("SELECT id,nom,postnom,prenom,email,statut_compte FROM users WHERE id=? LIMIT 1");
 $s->execute([$id]);$u=$s->fetch(PDO::FETCH_ASSOC);
 if(!$u)jsonResponse(false,'Utilisateur introuvable.',[],404);
@@ -41,4 +43,5 @@ if(!$mail){
     error_log('[USER RESEND SMTP] '.MailService::getLastError());
     jsonResponse(false,'Invitation régénérée, mais l’e-mail n’a pas pu être envoyé.',[],502);
 }
+error_log('[USER RESEND] Invitation envoyee pour utilisateur #'.$id);
 jsonResponse(true,'Invitation d’activation renvoyée.');
