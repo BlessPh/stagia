@@ -11,6 +11,16 @@ $access = (string) $tokens['access_token'];
 $me = $client->request('GET', '/me', null, $access);
 $suite->ok($me['status'] === 200 && ($me['json']['success'] ?? false), 'login → me fonctionne');
 $suite->ok(in_array('STAGIAIRE', $me['json']['data']['user']['roles'] ?? [], true), 'Le token appartient à un étudiant');
+$profileFields = [
+    'nom','postnom','prenom','sexe','date_naissance','adresse','ville','province',
+    'avatar_url','telephone','email','matricule'
+];
+foreach ($profileFields as $field) {
+    $suite->ok(
+        array_key_exists($field, $me['json']['data']['user'] ?? []),
+        "Le profil /me expose {$field}"
+    );
+}
 
 foreach ([
     '/student/dashboard', '/student/profile', '/student/enrollments',

@@ -228,11 +228,40 @@ function apiPasswordIsValid(string $password):bool{
         && preg_match('/[^A-Za-z0-9]/',$password)===1;
 }
 
+/** Transforme un chemin de fichier public en URL absolue utilisable par le mobile. */
+function apiPublicFileUrl(?string $path):?string{
+    $path=trim((string)$path);
+    if($path==='')return null;
+    if(filter_var($path,FILTER_VALIDATE_URL)!==false)return $path;
+
+    $forwardedProto=trim(explode(',',(string)($_SERVER['HTTP_X_FORWARDED_PROTO']??''))[0]);
+    $scheme=$forwardedProto!==''
+        ?$forwardedProto
+        :((!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http');
+    if(!in_array($scheme,['http','https'],true))$scheme='https';
+
+    $forwardedHost=trim(explode(',',(string)($_SERVER['HTTP_X_FORWARDED_HOST']??''))[0]);
+    $host=$forwardedHost!==''?$forwardedHost:trim((string)($_SERVER['HTTP_HOST']??''));
+    $base='/'.trim((string)(getenv('APP_BASE_URL')?:''),'/');
+    if($base==='/')$base='';
+    $normalized='/'.ltrim(str_replace('\\','/',$path),'/');
+    $relative=$base!==''&&str_starts_with($normalized,$base.'/')
+        ?$normalized
+        :$base.$normalized;
+
+    return $host!==''?$scheme.'://'.$host.$relative:$relative;
+}
+
 function apiUserData(PDO $pdo,int $userId):?array{
     $stmt=$pdo->prepare("
-        SELECT u.id,u.identifiant,u.nom,u.postnom,u.prenom,u.email,u.actif,u.statut_compte,
+        SELECT u.id,u.identifiant,u.matricule AS user_matricule,
+               u.nom,u.postnom,u.prenom,u.sexe,u.date_naissance,
+               u.email,u.telephone,u.photo,u.adresse,u.ville,u.province,u.actif,u.statut_compte,
                sp.id AS student_id,sp.stagia_code,sp.nom AS student_nom,
-               sp.postnom AS student_postnom,sp.prenom AS student_prenom,sp.statut AS student_status
+               sp.postnom AS student_postnom,sp.prenom AS student_prenom,
+               sp.sexe AS student_sexe,sp.date_naissance AS student_date_naissance,
+               sp.email AS student_email,sp.telephone AS student_telephone,
+               sp.photo AS student_photo,sp.statut AS student_status
         FROM users u
         LEFT JOIN student_profiles sp ON sp.user_id=u.id
         WHERE u.id=? LIMIT 1
@@ -242,14 +271,67 @@ function apiUserData(PDO $pdo,int $userId):?array{
     if(!$row)return null;
 
     $access=loadUserAccessContext($pdo,$userId);
+    $studentId=$row['student_id']!==null?(int)$row['student_id']:null;
+    $context=null;
+
+    if($studentId!==null){
+        $stmt=$pdo->prepare("
+            SELECT se.matricule,e.adresse,e.ville,e.province
+            FROM student_enrollments se
+            INNER JOIN etablissements e ON e.id=se.etablissement_id
+            WHERE se.student_id=?
+            ORDER BY (se.statut='ACTIF') DESC,se.id DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$studentId]);
+        $context=$stmt->fetch(PDO::FETCH_ASSOC)?:null;
+    }else{
+        $stmt=$pdo->prepare("
+            SELECT NULL AS matricule,e.adresse,e.ville,e.province
+            FROM etablissement_users membership
+            INNER JOIN etablissements e ON e.id=membership.etablissement_id
+            WHERE membership.user_id=?
+            ORDER BY membership.principal DESC,membership.id DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $context=$stmt->fetch(PDO::FETCH_ASSOC)?:null;
+    }
+
+    $isStudent=$studentId!==null;
+    $nom=$isStudent&&!empty($row['student_nom'])?$row['student_nom']:$row['nom'];
+    $postnom=$isStudent&&!empty($row['student_postnom'])?$row['student_postnom']:$row['postnom'];
+    $prenom=$isStudent&&!empty($row['student_prenom'])?$row['student_prenom']:$row['prenom'];
+    $sexe=$isStudent&&!empty($row['student_sexe'])?$row['student_sexe']:$row['sexe'];
+    $dateNaissance=$isStudent&&!empty($row['student_date_naissance'])
+        ?$row['student_date_naissance']
+        :$row['date_naissance'];
+    $email=$isStudent&&!empty($row['student_email'])?$row['student_email']:$row['email'];
+    $telephone=$isStudent&&!empty($row['student_telephone'])
+        ?$row['student_telephone']
+        :$row['telephone'];
+    $photo=$isStudent&&!empty($row['student_photo'])?$row['student_photo']:$row['photo'];
+    $adresse=$row['adresse']?:($context['adresse']??null);
+    $ville=$row['ville']?:($context['ville']??null);
+    $province=$row['province']?:($context['province']??null);
+    $matricule=$context['matricule']??$row['user_matricule']??null;
+
     $data=[
         'user'=>[
             'id'=>(int)$row['id'],
             'identifiant'=>$row['identifiant'],
-            'nom'=>$row['nom'],
-            'postnom'=>$row['postnom'],
-            'prenom'=>$row['prenom'],
-            'email'=>$row['email'],
+            'nom'=>$nom,
+            'postnom'=>$postnom,
+            'prenom'=>$prenom,
+            'sexe'=>$sexe,
+            'date_naissance'=>$dateNaissance,
+            'adresse'=>$adresse,
+            'ville'=>$ville,
+            'province'=>$province,
+            'avatar_url'=>apiPublicFileUrl($photo),
+            'telephone'=>$telephone,
+            'email'=>$email,
+            'matricule'=>$matricule,
             'actif'=>(bool)$row['actif'],
             'statut_compte'=>$row['statut_compte'],
             'role'=>['code'=>$access['role_code']??null,'nom'=>$access['role_nom']??null],
@@ -257,13 +339,22 @@ function apiUserData(PDO $pdo,int $userId):?array{
         ],
         'student'=>null
     ];
-    if($row['student_id']!==null){
+    if($studentId!==null){
         $data['student']=[
-            'id'=>(int)$row['student_id'],
+            'id'=>$studentId,
             'stagia_code'=>$row['stagia_code'],
-            'nom'=>$row['student_nom'],
-            'postnom'=>$row['student_postnom'],
-            'prenom'=>$row['student_prenom'],
+            'nom'=>$nom,
+            'postnom'=>$postnom,
+            'prenom'=>$prenom,
+            'sexe'=>$sexe,
+            'date_naissance'=>$dateNaissance,
+            'adresse'=>$adresse,
+            'ville'=>$ville,
+            'province'=>$province,
+            'avatar_url'=>apiPublicFileUrl($photo),
+            'telephone'=>$telephone,
+            'email'=>$email,
+            'matricule'=>$matricule,
             'statut'=>$row['student_status']
         ];
     }

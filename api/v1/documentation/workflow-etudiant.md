@@ -76,7 +76,7 @@ Tous les endpoints `api/v1/student/*` utilisent en principe un token `Authorizat
 | POST | `/api/v1/reset-password` | Public | Definit un nouveau mot de passe avec un token valable 60 minutes et utilisable une seule fois. |
 | POST | `/api/v1/refresh-token` | Refresh token | Effectue une rotation atomique de l'access token et du refresh token. |
 | POST | `/api/v1/logout` | Bearer token | Revoque uniquement la session mobile courante. |
-| GET | `/api/v1/me` | Bearer token | Retourne l'utilisateur, ses roles actifs et, si applicable, son profil etudiant. |
+| GET | `/api/v1/me` | Bearer token | Retourne l'identité complète (`nom`, `postnom`, `prenom`, `sexe`, `date_naissance`), les coordonnées, l'adresse, l'avatar, les rôles actifs et, si applicable, le matricule et le profil étudiant. |
 
 Le corps de `login` contient `identifiant`, `password` et, facultativement, `device_name`. `forgot-password` accepte `identifiant` ou `email`. `reset-password` attend `token`, `password` et `password_confirmation`. Le corps de `refresh-token` contient `refresh_token`. Les routes protegees attendent `Authorization: Bearer <access_token>`. Le serveur ne conserve que les empreintes SHA-256 des tokens.
 
