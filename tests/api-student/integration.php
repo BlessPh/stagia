@@ -37,6 +37,30 @@ foreach ([
     $suite->ok($response['status'] === 200, "Scénario de lecture {$path}");
 }
 
+$enrollmentsResponse = $client->request('GET', '/student/enrollments', null, $access);
+$enrollments = $enrollmentsResponse['json']['data']['items'] ?? [];
+if ($enrollments) {
+    $enrollmentId = (int) $enrollments[0]['enrollment_id'];
+    $academicPath = $client->request(
+        'GET',
+        '/student/academic-path?enrollment_id=' . $enrollmentId,
+        null,
+        $access
+    );
+    $academicData = $academicPath['json']['data'] ?? [];
+    $suite->ok($academicPath['status'] === 200, 'Le parcours academique est accessible');
+    $suite->ok(isset($academicData['enrollment']), 'Le rattachement est isole du parcours annuel');
+    $suite->ok(isset($academicData['university']), 'L universite est retournee une seule fois');
+    $suite->ok(array_key_exists('curriculum', $academicData), 'Le cursus fixe est retourne une seule fois');
+    $suite->ok(is_array($academicData['academic_years'] ?? null), 'L historique est structure par annee academique');
+    foreach ($academicData['academic_years'] ?? [] as $academicYear) {
+        $suite->ok(isset($academicYear['academic_year']), 'Chaque parcours contient son annee academique');
+        $suite->ok(array_key_exists('level', $academicYear), 'Chaque annee contient son niveau');
+        $suite->ok(isset($academicYear['promotion']), 'Chaque annee contient sa promotion');
+        $suite->ok(isset($academicYear['academic_enrollment_id']), 'Chaque annee reste utilisable pour charger ses notes');
+    }
+}
+
 $stageOptions = $client->request('GET', '/student/stage-options', null, $access);
 $suite->ok(
     $stageOptions['status'] === 200 && ($stageOptions['json']['success'] ?? false),
