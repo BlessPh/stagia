@@ -132,7 +132,6 @@ try{
             hu.nom host_unit_name
         $base
         WHERE $listWhereSql
-        GROUP BY ad.id
         ORDER BY CASE ad.statut WHEN 'ATTENDU' THEN 0 WHEN 'ADMIS' THEN 1 WHEN 'EN_COURS' THEN 2 ELSE 3 END,ad.id DESC
         LIMIT $perPage OFFSET $offset
     ");
