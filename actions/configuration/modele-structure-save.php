@@ -64,6 +64,11 @@ try{
         if(!(int)$tpl['departement_active'])
             throw new RuntimeException('Les départements sont désactivés dans ce modèle.');
 
+        if($unit&&!(int)$tpl['unite_academique_active'])
+            throw new RuntimeException(
+                "Ce modèle n'utilise pas les unités académiques. Enregistrez le département sans unité parente."
+            );
+
         if($unit){
             $s=$pdo->prepare("
                 SELECT id
@@ -140,6 +145,9 @@ try{
             $dep=(int)$r['id'];
             $unit=(int)($r['unit_id']??0)?:null;
         }elseif($mode==='UNIT'){
+            if(!(int)$tpl['unite_academique_active'])
+                throw new RuntimeException("Les unités académiques sont désactivées dans ce modèle.");
+
             if(!(int)$tpl['filiere_directe_unite_autorisee'])
                 throw new RuntimeException("Le rattachement direct à l'unité est interdit.");
 

@@ -132,8 +132,8 @@ async function load(){
         const r=await STAGIA.request(`${BASE_URL}/actions/configuration/modele-structure-list.php?template_id=${TID}`);data=r.data;
         $('countUnits').textContent=data.units.length;$('countDeps').textContent=data.departments.length;$('countPrograms').textContent=data.programs.length;$('countOptions').textContent=data.options.length;$('countPromotionModels').textContent=(data.promotion_models||[]).length;
         $('unitsBody').innerHTML=data.units.length?data.units.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.type_unite)}</td><td>${esc(x.nom)}</td><td>${esc(x.parent_nom||'—')}</td><td class="text-center">${actions('UNIT',x.id)}</td></tr>`).join(''):empty(5,'Aucune unité configurée.');
-        $('depsBody').innerHTML=data.departments.length?data.departments.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${esc(x.unit_nom||'Directement sous le type')}</td><td class="text-center">${actions('DEPARTMENT',x.id)}</td></tr>`).join(''):empty(4,'Aucun département configuré.');
-        $('programsBody').innerHTML=data.programs.length?data.programs.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${esc(x.department_nom?'Département · '+x.department_nom:(x.unit_nom?'Unité · '+x.unit_nom:'Établissement'))}</td><td><strong>${esc(x.curriculum_code)}</strong><small class="d-block text-muted">${esc(x.curriculum_nom)}</small></td><td><small>${esc(x.niveaux||'—')}</small></td><td class="text-center">${actions('PROGRAM',x.id)}</td></tr>`).join(''):empty(6,'Aucun programme configuré.');
+        $('depsBody').innerHTML=data.departments.length?data.departments.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${Number(x.unit_reference_invalid)===1&&Number(data.template.unite_academique_active)===1?'<span class="badge bg-danger">Unité liée absente ou inactive</span>':esc(x.unit_nom||'Directement sous le type')}</td><td class="text-center">${actions('DEPARTMENT',x.id)}</td></tr>`).join(''):empty(4,'Aucun département configuré.');
+        $('programsBody').innerHTML=data.programs.length?data.programs.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${Number(x.department_reference_invalid)===1?'<span class="badge bg-danger">Département lié absent ou inactif</span>':(Number(x.unit_reference_invalid)===1&&Number(data.template.unite_academique_active)===1?'<span class="badge bg-danger">Unité liée absente ou inactive</span>':esc(x.department_nom?'Département · '+x.department_nom:(x.unit_nom?'Unité · '+x.unit_nom:'Établissement')))}</td><td><strong>${esc(x.curriculum_code)}</strong><small class="d-block text-muted">${esc(x.curriculum_nom)}</small></td><td><small>${esc(x.niveaux||'—')}</small></td><td class="text-center">${actions('PROGRAM',x.id)}</td></tr>`).join(''):empty(6,'Aucun programme configuré.');
         $('optionsBody').innerHTML=data.options.length?data.options.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${esc(x.program_nom)}</td><td class="text-center">${actions('OPTION',x.id)}</td></tr>`).join(''):empty(4,'Aucune option / spécialité configurée.');
 
         $('promotionModelsBody').innerHTML=(data.promotion_models||[]).length?data.promotion_models.map(x=>{
@@ -181,7 +181,7 @@ function open(entity,x=null){
     if(entity==='DEPARTMENT')$('dynamicFields').innerHTML=`
         <div class="row g-3">
         <div class="col-md-7"><label class="form-label">Nom *</label><input name="nom" class="form-control" value="${esc(x?.nom||'')}" required></div>
-        <div class="col-md-5"><label class="form-label">Unité académique</label><select name="unit_id" class="form-select"><option value="">Aucune / direct</option>${optionList(data.units,x?.unit_id||'')}</select></div>
+        <div class="col-md-5"><label class="form-label">Unité académique</label><select name="unit_id" class="form-select"><option value="">Aucune / direct</option>${Number(data.template.unite_academique_active)===1?optionList(data.units,x?.unit_id||''):''}</select></div>
         
         <div class="col-md-4"><label class="form-label">Ordre</label><input type="number" name="ordre" class="form-control" value="${x?.ordre||0}"></div></div>`;
 
@@ -194,7 +194,7 @@ function open(entity,x=null){
         
         <div class="col-md-5"><label class="form-label">Rattachement *</label><select name="rattachement_type" id="programMode" class="form-select">
             ${data.template.departement_active==1?'<option value="DEPARTMENT">Département</option>':''}
-            ${data.template.filiere_directe_unite_autorisee==1?'<option value="UNIT">Unité académique</option>':''}
+            ${data.template.unite_academique_active==1&&data.template.filiere_directe_unite_autorisee==1?'<option value="UNIT">Unité académique</option>':''}
             ${data.template.filiere_directe_etablissement_autorisee==1?'<option value="ESTABLISHMENT">Directement sous établissement</option>':''}
         </select></div>
         <div class="col-md-7"><label class="form-label">Parent</label><select name="parent_id" id="programParent" class="form-select"></select></div>

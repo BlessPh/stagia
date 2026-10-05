@@ -16,10 +16,10 @@ try{
     $pdo->beginTransaction();
     if($entity==='UNIT'){
         $s=$pdo->prepare("SELECT
-            (SELECT COUNT(*) FROM academic_template_units WHERE parent_id=? AND actif=1)+
-            (SELECT COUNT(*) FROM academic_template_departments WHERE unit_id=? AND actif=1)+
-            (SELECT COUNT(*) FROM academic_template_programs WHERE unit_id=? AND actif=1)");
-        $s->execute([$id,$id,$id]);
+            (SELECT COUNT(*) FROM academic_template_units WHERE parent_id=? AND template_id=? AND actif=1)+
+            (SELECT COUNT(*) FROM academic_template_departments WHERE unit_id=? AND template_id=? AND actif=1)+
+            (SELECT COUNT(*) FROM academic_template_programs WHERE unit_id=? AND template_id=? AND actif=1)");
+        $s->execute([$id,$templateId,$id,$templateId,$id,$templateId]);
         if((int)$s->fetchColumn())throw new RuntimeException('Cette unité contient encore des éléments actifs.');
 
         $pdo->prepare("
@@ -34,9 +34,9 @@ try{
         $s=$pdo->prepare("
             SELECT COUNT(*)
             FROM academic_template_programs
-            WHERE department_id=? AND actif=1
+            WHERE department_id=? AND template_id=? AND actif=1
         ");
-        $s->execute([$id]);
+        $s->execute([$id,$templateId]);
 
         if((int)$s->fetchColumn())
             throw new RuntimeException('Ce département contient encore des programmes actifs.');
@@ -53,9 +53,9 @@ try{
         $s=$pdo->prepare("
             SELECT COUNT(*)
             FROM academic_template_options
-            WHERE program_id=? AND actif=1
+            WHERE program_id=? AND template_id=? AND actif=1
         ");
-        $s->execute([$id]);
+        $s->execute([$id,$templateId]);
 
         if((int)$s->fetchColumn())
             throw new RuntimeException('Ce programme contient encore des options / spécialités actives.');

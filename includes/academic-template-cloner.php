@@ -220,11 +220,17 @@ function applyAcademicTemplate(
         ");
 
         foreach($s->fetchAll(PDO::FETCH_ASSOC) as $d){
-            $unit=(int)($d['unit_id']??0);
+            /* Une association historique ne doit pas être utilisée lorsque
+             * le module des unités est désactivé pour ce modèle. */
+            $unit=(int)$tpl['unite_academique_active']===1
+                ? (int)($d['unit_id']??0)
+                : 0;
 
             if($unit&&!isset($unitMap[$unit]))
                 throw new RuntimeException(
-                    "Le département « {$d['nom']} » référence une unité absente du modèle appliqué."
+                    "Le département « {$d['nom']} » référence l'unité #{$unit}, " .
+                    "mais celle-ci est absente, inactive ou appartient à un autre modèle. " .
+                    "Corrigez son rattachement dans le référentiel académique « {$tpl['nom']} »."
                 );
 
             $ins->execute([
@@ -262,7 +268,9 @@ function applyAcademicTemplate(
         ");
 
         foreach($s->fetchAll(PDO::FETCH_ASSOC) as $p){
-            $unit=(int)($p['unit_id']??0);
+            $unit=(int)$tpl['unite_academique_active']===1
+                ? (int)($p['unit_id']??0)
+                : 0;
             $dep=(int)($p['department_id']??0);
 
             if($unit&&!isset($unitMap[$unit]))

@@ -263,8 +263,8 @@ function empty(cols,msg){return `<tr><td colspan="${cols}" class="text-center py
 function render(){
     let html='';
     if(ENTITY==='UNIT') html=data.units.length?data.units.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.type_unite)}</td><td>${esc(x.nom)}</td><td>${esc(x.parent_nom||'—')}</td><td class="text-center">${actions('UNIT',x.id)}</td></tr>`).join(''):empty(5,'Aucune unité configurée pour ce type.');
-    if(ENTITY==='DEPARTMENT') html=data.departments.length?data.departments.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${esc(x.unit_nom||'Directement sous le type')}</td><td class="text-center">${actions('DEPARTMENT',x.id)}</td></tr>`).join(''):empty(4,'Aucun département configuré pour ce type.');
-    if(ENTITY==='PROGRAM') html=data.programs.length?data.programs.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${esc(x.department_nom?'Département · '+x.department_nom:(x.unit_nom?'Unité · '+x.unit_nom:'Établissement'))}</td><td><strong>${esc(x.curriculum_code)}</strong><small class="d-block text-muted">${esc(x.curriculum_nom)}</small></td><td><small>${esc(x.niveaux||'—')}</small></td><td class="text-center">${actions('PROGRAM',x.id)}</td></tr>`).join(''):empty(6,'Aucun programme configuré pour ce type.');
+    if(ENTITY==='DEPARTMENT') html=data.departments.length?data.departments.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${Number(x.unit_reference_invalid)===1&&Number(data.template.unite_academique_active)===1?'<span class="badge bg-danger">Unité liée absente ou inactive</span>':esc(x.unit_nom||'Directement sous le type')}</td><td class="text-center">${actions('DEPARTMENT',x.id)}</td></tr>`).join(''):empty(4,'Aucun département configuré pour ce type.');
+    if(ENTITY==='PROGRAM') html=data.programs.length?data.programs.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${Number(x.department_reference_invalid)===1?'<span class="badge bg-danger">Département lié absent ou inactif</span>':(Number(x.unit_reference_invalid)===1&&Number(data.template.unite_academique_active)===1?'<span class="badge bg-danger">Unité liée absente ou inactive</span>':esc(x.department_nom?'Département · '+x.department_nom:(x.unit_nom?'Unité · '+x.unit_nom:'Établissement')))}</td><td><strong>${esc(x.curriculum_code)}</strong><small class="d-block text-muted">${esc(x.curriculum_nom)}</small></td><td><small>${esc(x.niveaux||'—')}</small></td><td class="text-center">${actions('PROGRAM',x.id)}</td></tr>`).join(''):empty(6,'Aucun programme configuré pour ce type.');
     if(ENTITY==='OPTION') html=data.options.length?data.options.map(x=>`<tr><td><strong>${esc(x.code)}</strong></td><td>${esc(x.nom)}</td><td>${esc(x.program_nom)}</td><td class="text-center">${actions('OPTION',x.id)}</td></tr>`).join(''):empty(4,'Aucune option / spécialité configurée pour ce type.');
     if(ENTITY==='PROMOTION') html=(data.promotion_models||[]).length?data.promotion_models.map(x=>{
         const levels=(x.levels||[]).map(l=>`<span class="badge bg-light text-dark border me-1 mb-1">${esc(l.code)}</span>`).join('');
@@ -307,7 +307,7 @@ function open(entity,x){
         <div class="row g-3">
         <div class="col-md-8"><label class="form-label">Nom *</label><input name="nom" class="form-control" value="${esc(x?.nom||'')}" required></div>
         <div class="col-md-4"><label class="form-label">Ordre</label><input type="number" name="ordre" class="form-control" value="${x?.ordre||0}"></div>
-        <div class="col-12"><label class="form-label">Unité académique</label><select name="unit_id" class="form-select"><option value="">Aucune / directement sous le type</option>${selectOptions(data.units,x?.unit_id||'')}</select></div>
+        <div class="col-12"><label class="form-label">Unité académique</label><select name="unit_id" class="form-select"><option value="">Aucune / directement sous le type</option>${Number(data.template.unite_academique_active)===1?selectOptions(data.units,x?.unit_id||''):''}</select></div>
         </div>`;
 
     if(entity==='PROGRAM'){
@@ -318,7 +318,7 @@ function open(entity,x){
         <div class="col-md-4"><label class="form-label">Durée (ans)</label><input type="number" min="1" max="20" name="duree_annees" class="form-control" value="${x?.duree_annees||''}"></div>
         <div class="col-md-5"><label class="form-label">Rattachement *</label><select name="rattachement_type" id="programMode" class="form-select">
             ${Number(data.template.departement_active)===1?'<option value="DEPARTMENT">Département</option>':''}
-            ${Number(data.template.filiere_directe_unite_autorisee)===1?'<option value="UNIT">Unité académique</option>':''}
+            ${Number(data.template.unite_academique_active)===1&&Number(data.template.filiere_directe_unite_autorisee)===1?'<option value="UNIT">Unité académique</option>':''}
             ${Number(data.template.filiere_directe_etablissement_autorisee)===1?'<option value="ESTABLISHMENT">Directement sous établissement</option>':''}
         </select></div>
         <div class="col-md-7"><label class="form-label">Parent</label><select name="parent_id" id="programParent" class="form-select"></select></div>

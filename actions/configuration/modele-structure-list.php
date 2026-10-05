@@ -17,16 +17,21 @@ $s=$pdo->prepare("SELECT u.*,p.nom parent_nom FROM academic_template_units u
     WHERE u.template_id=? AND u.actif=1 ORDER BY u.ordre,u.nom");
 $s->execute([$id]);$units=$s->fetchAll(PDO::FETCH_ASSOC);
 
-$s=$pdo->prepare("SELECT d.*,u.nom unit_nom FROM academic_template_departments d
-    LEFT JOIN academic_template_units u ON u.id=d.unit_id
+$s=$pdo->prepare("SELECT d.*,u.nom unit_nom,
+    CASE WHEN d.unit_id IS NOT NULL AND u.id IS NULL THEN 1 ELSE 0 END unit_reference_invalid
+    FROM academic_template_departments d
+    LEFT JOIN academic_template_units u ON u.id=d.unit_id AND u.template_id=d.template_id AND u.actif=1
     WHERE d.template_id=? ORDER BY d.ordre,d.nom");
 $s->execute([$id]);$departments=$s->fetchAll(PDO::FETCH_ASSOC);
 
-$s=$pdo->prepare("SELECT p.*,u.nom unit_nom,d.nom department_nom,r.code curriculum_code,r.nom curriculum_nom,
+$s=$pdo->prepare("SELECT p.*,u.nom unit_nom,d.nom department_nom,
+    CASE WHEN p.unit_id IS NOT NULL AND u.id IS NULL THEN 1 ELSE 0 END unit_reference_invalid,
+    CASE WHEN p.department_id IS NOT NULL AND d.id IS NULL THEN 1 ELSE 0 END department_reference_invalid,
+    r.code curriculum_code,r.nom curriculum_nom,
     GROUP_CONCAT(l.code ORDER BY c.ordre,l.ordre SEPARATOR ', ') niveaux
     FROM academic_template_programs p
-    LEFT JOIN academic_template_units u ON u.id=p.unit_id
-    LEFT JOIN academic_template_departments d ON d.id=p.department_id
+    LEFT JOIN academic_template_units u ON u.id=p.unit_id AND u.template_id=p.template_id AND u.actif=1
+    LEFT JOIN academic_template_departments d ON d.id=p.department_id AND d.template_id=p.template_id AND d.actif=1
     JOIN curriculum_references r ON r.id=p.curriculum_reference_id
     LEFT JOIN academic_cycles c ON c.curriculum_reference_id=r.id AND c.actif=1
     LEFT JOIN academic_levels l ON l.academic_cycle_id=c.id AND l.actif=1
