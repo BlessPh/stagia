@@ -27,6 +27,32 @@ if(!$d){
     exit('Demande introuvable.');
 }
 
+$typeStmt=$pdo->prepare("
+    SELECT code,libelle,academic_enabled,host_enabled
+    FROM establishment_types
+    WHERE code=? AND actif=1
+    LIMIT 1
+");
+$typeStmt->execute([$d['type_etablissement']]);
+$establishmentType=$typeStmt->fetch(PDO::FETCH_ASSOC)?:null;
+
+$academicModels=[];
+$defaultAcademicModelId=0;
+if($establishmentType&&(int)$establishmentType['academic_enabled']===1){
+    $modelStmt=$pdo->prepare("
+        SELECT id,nom,description,version_no,is_default
+        FROM academic_structure_templates
+        WHERE type_etablissement=? AND actif=1
+        ORDER BY is_default DESC,version_no DESC,id DESC
+    ");
+    $modelStmt->execute([$d['type_etablissement']]);
+    $academicModels=$modelStmt->fetchAll(PDO::FETCH_ASSOC);
+    if($academicModels)$defaultAcademicModelId=(int)$academicModels[0]['id'];
+}
+
+$actionError=$_SESSION['adhesion_action_error']??null;
+unset($_SESSION['adhesion_action_error']);
+
 /* =========================================================
    COMPTE ADMINISTRATEUR
 ========================================================= */
@@ -98,6 +124,14 @@ require_once __DIR__.'/../../includes/app-header.php';
 <div class="alert alert-success alert-dismissible fade show">
     <i class="bi bi-check-circle me-2"></i>
     Statut de la demande mis à jour.
+    <button class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
+<?php if($actionError): ?>
+<div class="alert alert-danger alert-dismissible fade show">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <?= htmlspecialchars((string)$actionError,ENT_QUOTES,'UTF-8') ?>
     <button class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 <?php endif; ?>
@@ -389,6 +423,7 @@ require_once __DIR__.'/../../includes/app-header.php';
         <form
             action="<?= BASE_URL ?>/actions/adhesion/validate.php"
             method="POST"
+            id="validateAdhesionForm"
         >
 
             <input
@@ -426,11 +461,34 @@ require_once __DIR__.'/../../includes/app-header.php';
 
             <?php endif; ?>
 
+            <?php if($establishmentType&&(int)$establishmentType['academic_enabled']===1): ?>
+                <?php if($academicModels): ?>
+                <div class="mb-3">
+                    <label class="form-label" for="academicTemplateId">Modèle académique STAGIA</label>
+                    <select name="academic_template_id" id="academicTemplateId" class="form-select" required>
+                        <?php foreach($academicModels as $model): ?>
+                        <option value="<?= (int)$model['id'] ?>" <?= (int)$model['id']===$defaultAcademicModelId?'selected':'' ?>>
+                            <?= htmlspecialchars($model['nom'],ENT_QUOTES,'UTF-8') ?>
+                            · v<?= (int)$model['version_no'] ?>
+                            <?= (int)$model['is_default']===1?' · Par défaut':'' ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text">Ce modèle initialise la structure académique de l’établissement.</div>
+                </div>
+                <?php else: ?>
+                <div class="alert alert-danger small">Aucun modèle académique actif n’est configuré pour ce type d’établissement.</div>
+                <?php endif; ?>
+            <?php endif; ?>
+
             <button
+                type="button"
                 class="btn btn-success w-100"
-                onclick="return confirm(
-                    'Valider cette adhésion et créer son espace ?'
-                )"
+                data-confirm-form="validateAdhesionForm"
+                data-confirm-title="Valider la demande"
+                data-confirm-message="Valider cette adhésion et créer son espace STAGIA-RDC ?"
+                data-confirm-style="success"
+                <?= $establishmentType&&(int)$establishmentType['academic_enabled']===1&&!$academicModels?'disabled':'' ?>
             >
                 <i class="bi bi-check-circle me-1"></i>
                 Valider et créer l'espace
@@ -447,6 +505,7 @@ require_once __DIR__.'/../../includes/app-header.php';
         <form
             action="<?= BASE_URL ?>/actions/adhesion/statut.php"
             method="POST"
+            id="adhesionDecisionForm"
         >
 
             <input
@@ -470,6 +529,7 @@ require_once __DIR__.'/../../includes/app-header.php';
                 class="form-control mb-2"
                 rows="3"
                 placeholder="Précisez votre observation..."
+                required
             ></textarea>
 
             <div class="d-grid gap-2">
@@ -484,12 +544,14 @@ require_once __DIR__.'/../../includes/app-header.php';
                 </button>
 
                 <button
-                    name="statut"
-                    value="REJETEE"
+                    type="button"
                     class="btn btn-outline-danger"
-                    onclick="return confirm(
-                        'Rejeter cette demande ?'
-                    )"
+                    data-confirm-form="adhesionDecisionForm"
+                    data-confirm-title="Rejeter la demande"
+                    data-confirm-message="Rejeter définitivement cette demande d’adhésion ?"
+                    data-confirm-style="danger"
+                    data-submit-name="statut"
+                    data-submit-value="REJETEE"
                 >
                     <i class="bi bi-x-circle me-1"></i>
                     Rejeter
@@ -598,6 +660,7 @@ require_once __DIR__.'/../../includes/app-header.php';
             action="<?= BASE_URL ?>/actions/adhesion/resend-activation.php"
             method="POST"
             class="mt-3"
+            id="resendActivationForm"
         >
 
             <input
@@ -613,10 +676,12 @@ require_once __DIR__.'/../../includes/app-header.php';
             >
 
             <button
+                type="button"
                 class="btn btn-outline-primary w-100"
-                onclick="return confirm(
-                    'Créer et envoyer un nouveau lien d’activation ?'
-                )"
+                data-confirm-form="resendActivationForm"
+                data-confirm-title="Renvoyer l’invitation"
+                data-confirm-message="Créer et envoyer un nouveau lien d’activation ?"
+                data-confirm-style="primary"
             >
                 <i class="bi bi-envelope-arrow-up me-1"></i>
                 Renvoyer l'invitation
@@ -700,5 +765,76 @@ require_once __DIR__.'/../../includes/app-header.php';
 </div>
 
 </main>
+
+<div class="modal fade" id="adhesionConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="adhesionConfirmTitle">Confirmer l’action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0" id="adhesionConfirmMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn" id="adhesionConfirmSubmit">Confirmer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+    const modalElement=document.getElementById('adhesionConfirmModal');
+    if(!modalElement||typeof bootstrap==='undefined')return;
+
+    const modal=new bootstrap.Modal(modalElement);
+    const title=document.getElementById('adhesionConfirmTitle');
+    const message=document.getElementById('adhesionConfirmMessage');
+    const submit=document.getElementById('adhesionConfirmSubmit');
+    let pending=null;
+
+    document.querySelectorAll('[data-confirm-form]').forEach(button=>{
+        button.addEventListener('click',()=>{
+            const form=document.getElementById(button.dataset.confirmForm||'');
+            if(!form||!form.reportValidity())return;
+
+            pending={
+                form,
+                name:button.dataset.submitName||'',
+                value:button.dataset.submitValue||''
+            };
+            title.textContent=button.dataset.confirmTitle||'Confirmer l’action';
+            message.textContent=button.dataset.confirmMessage||'Voulez-vous continuer ?';
+            submit.className='btn btn-'+(button.dataset.confirmStyle||'primary');
+            modal.show();
+        });
+    });
+
+    submit.addEventListener('click',()=>{
+        if(!pending)return;
+        const {form,name,value}=pending;
+        if(name){
+            let field=form.querySelector('input[data-modal-submit-field="1"]');
+            if(!field){
+                field=document.createElement('input');
+                field.type='hidden';
+                field.dataset.modalSubmitField='1';
+                form.appendChild(field);
+            }
+            field.name=name;
+            field.value=value;
+        }
+        submit.disabled=true;
+        form.submit();
+    });
+
+    modalElement.addEventListener('hidden.bs.modal',()=>{
+        pending=null;
+        submit.disabled=false;
+    });
+});
+</script>
 
 <?php require_once __DIR__.'/../../includes/app-footer.php'; ?>

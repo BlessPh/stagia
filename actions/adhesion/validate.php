@@ -12,6 +12,12 @@ function fail(string $message,int $code=400):never{
     exit($message);
 }
 
+function validationBack(int $id,string $message):never{
+    $_SESSION['adhesion_action_error']=$message;
+    header('Location: '.BASE_URL.'/views/adhesions/show.php?id='.$id);
+    exit;
+}
+
 function generateCode(PDO $pdo,string $nom):string{
     $clean=iconv('UTF-8','ASCII//TRANSLIT//IGNORE',$nom)?:$nom;
     $clean=strtoupper(preg_replace('/[^A-Za-z0-9 ]/',' ',$clean));
@@ -139,6 +145,18 @@ try{
     if($s->fetchColumn())
         throw new AdhesionException("Un utilisateur utilise déjà l'e-mail du responsable.");
 
+    $s=$pdo->prepare("SELECT id FROM etablissements WHERE LOWER(TRIM(nom))=LOWER(TRIM(?)) LIMIT 1");
+    $s->execute([$d['nom_etablissement']]);
+    if($s->fetchColumn())
+        throw new AdhesionException("Un établissement portant ce nom existe déjà.");
+
+    if(trim((string)($d['numero_agrement']??''))!==''){
+        $s=$pdo->prepare("SELECT id FROM etablissements WHERE numero_agrement=? LIMIT 1");
+        $s->execute([$d['numero_agrement']]);
+        if($s->fetchColumn())
+            throw new AdhesionException("Ce numéro d'agrément est déjà utilisé.");
+    }
+
     $s=$pdo->query("SELECT id FROM roles WHERE code='ADMIN_ETABLISSEMENT' LIMIT 1");
     $roleId=(int)$s->fetchColumn();
     if(!$roleId)throw new AdhesionException('Rôle ADMIN_ETABLISSEMENT introuvable.');
@@ -152,11 +170,11 @@ try{
 
     $pdo->prepare("
         INSERT INTO etablissements(
-            code,nom,type_etablissement,email,telephone,adresse,
+            code,nom,logo,type_etablissement,email,telephone,adresse,
             piece_justificative,province,ville,numero_agrement,statut
-        ) VALUES(?,?,?,?,?,?,?,?,?,?,'VALIDE')
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,'VALIDE')
     ")->execute([
-        $code,$d['nom_etablissement'],$type['code'],$d['email_etablissement'],
+        $code,$d['nom_etablissement'],$d['logo']?:null,$type['code'],$d['email_etablissement']?:null,
         $d['telephone_etablissement'],$d['adresse'],$d['piece_justificative'],
         $d['province'],$d['ville'],$d['numero_agrement']
     ]);
@@ -181,10 +199,16 @@ try{
         VALUES(?,?,?,1)
     ")->execute([$etablissementId,$userId,$d['responsable_fonction']]);
 
-    if($academicTemplateId!==null)
-        applyAcademicTemplate($pdo,$etablissementId,$type,$academicTemplateId);
+    try{
+        if($academicTemplateId!==null)
+            applyAcademicTemplate($pdo,$etablissementId,$type,$academicTemplateId);
 
-    applyHostUnitTemplate($pdo,$etablissementId,$type);
+        applyHostUnitTemplate($pdo,$etablissementId,$type);
+    }catch(PDOException $e){
+        throw $e;
+    }catch(RuntimeException $e){
+        throw new AdhesionException($e->getMessage(),0,$e);
+    }
 
     $pdo->prepare("
         UPDATE demandes_adhesion
@@ -197,12 +221,13 @@ try{
 
 }catch(AdhesionException $e){
     if($pdo->inTransaction())$pdo->rollBack();
-    fail($e->getMessage());
+    validationBack($id,$e->getMessage());
 
 }catch(Throwable $e){
     if($pdo->inTransaction())$pdo->rollBack();
-    error_log('[ADHESION VALIDATION] '.$e->getMessage().' | '.$e->getFile().':'.$e->getLine());
-    fail('Impossible de valider la demande.');
+    $errorReference='ADH-ERR-'.date('YmdHis').'-'.strtoupper(bin2hex(random_bytes(2)));
+    error_log('[ADHESION VALIDATION '.$errorReference.'] '.$e->getMessage().' | '.$e->getFile().':'.$e->getLine());
+    validationBack($id,"Impossible de valider la demande. Référence : {$errorReference}.");
 }
 
 $scheme=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http';
