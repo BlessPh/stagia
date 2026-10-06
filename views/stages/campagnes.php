@@ -169,7 +169,7 @@ require_once __DIR__.'/../../includes/app-header.php';
 
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <div><label class="form-label mb-0">Hôpitaux à solliciter</label><small class="d-block text-muted" id="hospitalHint">Sélection facultative.</small></div>
+            <div><label class="form-label mb-0">Hôpitaux à solliciter *</label><small class="d-block text-muted" id="hospitalHint">Sélectionnez au moins un hôpital et indiquez le nombre de places souhaitées.</small></div>
             <div><button type="button" class="btn btn-sm btn-link" id="hospitalAll">Tout sélectionner</button><button type="button" class="btn btn-sm btn-link text-secondary" id="hospitalNone">Aucun</button></div>
         </div>
 
@@ -269,12 +269,7 @@ function renderPromotions(selectedIds=[]){
 }
 
 function updateTypeRules(selectedIds=[]){
-    const t=typeObject(),
-          required=truthy(policyValue(t,'requires_hosting_participation',false))||t?.code==='MEDICAL_D4';
-
-    $('hospitalHint').innerHTML=required
-        ?'<span class="text-danger">Au moins un hôpital est obligatoire pour ce type.</span>'
-        :'Vous pouvez sélectionner un ou plusieurs hôpitaux à solliciter.';
+    $('hospitalHint').innerHTML='<span class="text-danger">Sélectionnez au moins un hôpital</span> et indiquez le nombre de places souhaitées.';
 
     renderTypeFinance();
     renderPromotions(selectedIds);
@@ -489,22 +484,7 @@ $('campaignForm').onsubmit=async e=>{
         return;
     }
 
-    const t=typeObject();
-
-    const requiresHosting=
-        t?.code==='MEDICAL_D4' ||
-        truthy(
-            policyValue(
-                t,
-                'requires_hosting_participation',
-                false
-            )
-        );
-
-    if(
-        requiresHosting &&
-        !document.querySelector('.hospital-choice:checked')
-    ){
+    if(!document.querySelector('.hospital-choice:checked')){
         STAGIA.toast(
             'Sélectionnez au moins un hôpital à solliciter.',
             'warning'

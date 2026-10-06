@@ -27,7 +27,7 @@ try{
 
         $s=$pdo->prepare("SELECT COUNT(*) FROM stage_campaign_promotions WHERE campaign_id=?");$s->execute([$id]);
         if((int)$s->fetchColumn()<1)throw new RuntimeException('La campagne doit cibler au moins une promotion.');
-        if(empty($c['objectif_stage']))throw new RuntimeException("L'objectif du stage doit être renseigné avant publication.");
+        /* L'objectif est un complément pédagogique facultatif, y compris à la publication. */
         if(empty($c['ouverture_candidatures'])||empty($c['cloture_candidatures']))throw new RuntimeException('La période des candidatures est incomplète.');
         if($c['cloture_candidatures']<=$c['db_now'])throw new RuntimeException('La période de candidature est déjà clôturée.');
 
