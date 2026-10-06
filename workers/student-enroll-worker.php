@@ -11,6 +11,7 @@ ignore_user_abort(true);
 require_once __DIR__.'/../config/config.php';
 require_once __DIR__.'/../config/database.php';
 require_once __DIR__.'/../services/MailService.php';
+require_once __DIR__.'/../includes/student-role-assignment.php';
 
 
 $jobUuid=
@@ -1273,6 +1274,15 @@ try{
                 true;
         }
 
+
+        if(!empty($student['user_id'])){
+            ensureStudentRoleAssignment(
+                $pdo,
+                (int)$student['user_id'],
+                $etablissementId,
+                !empty($job['created_by_user_id'])?(int)$job['created_by_user_id']:null
+            );
+        }
 
         $pdo->commit();
 

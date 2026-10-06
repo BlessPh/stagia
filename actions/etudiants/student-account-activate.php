@@ -3,6 +3,7 @@ require_once __DIR__.'/../../config/config.php';
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/permissions.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/student-role-assignment.php';
 
 requireAjaxRole([
     'ADMIN_ETABLISSEMENT',
@@ -206,6 +207,13 @@ try{
         throw new RuntimeException(
             'Impossible de relier le compte au profil étudiant.'
         );
+
+    ensureStudentRoleAssignment(
+        $pdo,
+        $userId,
+        $etablissementId,
+        (int)($_SESSION['user_id']??0)?:null
+    );
 
     $pdo->commit();
 

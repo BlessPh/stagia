@@ -142,6 +142,11 @@ function requireApiUser(PDO $pdo):array{
         apiResponse(false,"Ce compte ne possède plus d'accès actif.",[],403);
     }
 
+    if(!in_array('STAGIAIRE',$access['role_codes']??[],true)){
+        $pdo->prepare('DELETE FROM api_tokens WHERE id=?')->execute([$user['token_id']]);
+        apiResponse(false,'Accès mobile réservé aux étudiants ayant le rôle STAGIAIRE.',[],403);
+    }
+
     $pdo->prepare('UPDATE api_tokens SET last_used_at=NOW() WHERE id=?')->execute([$user['token_id']]);
     $user['access']=$access;
     return $user;

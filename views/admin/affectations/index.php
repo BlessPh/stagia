@@ -30,12 +30,28 @@ require_once __DIR__.'/../../../includes/app-header.php';
     <div class="stagia-kpi-card"><div><span>ACTIVES</span><strong id="kActive">0</strong><small>Droits actuellement applicables</small></div><div class="stagia-kpi-icon kpi-green"><i class="bi bi-shield-check"></i></div></div>
     <div class="stagia-kpi-card"><div><span>PLANIFIÉES</span><strong id="kPlanned">0</strong><small>Début prévu ultérieurement</small></div><div class="stagia-kpi-icon kpi-orange"><i class="bi bi-clock"></i></div></div>
     <div class="stagia-kpi-card"><div><span>RÉVOQUÉES</span><strong id="kRevoked">0</strong><small>Historique conservé</small></div><div class="stagia-kpi-icon kpi-purple"><i class="bi bi-shield-x"></i></div></div>
+    <div class="stagia-kpi-card"><div><span>SANS RÔLE ACTIF</span><strong id="kUnassigned">0</strong><small>Utilisateurs à traiter</small></div><div class="stagia-kpi-icon kpi-orange"><i class="bi bi-person-exclamation"></i></div></div>
 </div>
 
 <div class="alert alert-light border">
 <i class="bi bi-info-circle text-primary me-1"></i>
 Les affectations ne sont jamais supprimées : elles sont révoquées et restent traçables. Les actions métier sensibles devront encore vérifier le contexte et la politique métier.
 </div>
+
+<?php if($isSuper): ?>
+<div class="stagia-list-card mb-4" id="unassignedCard">
+<div class="p-4 border-bottom">
+    <h5 class="mb-1"><i class="bi bi-person-exclamation me-2"></i>Utilisateurs sans rôle actif</h5>
+    <p class="text-muted mb-0">Ces comptes peuvent recevoir une affectation, même s’ils n’ont encore jamais eu de rôle.</p>
+</div>
+<div class="table-responsive">
+<table class="table stagia-modern-table align-middle mb-0">
+<thead><tr><th>UTILISATEUR</th><th>IDENTIFIANT</th><th class="text-center">ACTION</th></tr></thead>
+<tbody id="unassignedBody"><tr><td colspan="3" class="text-center py-4 text-muted">Chargement...</td></tr></tbody>
+</table>
+</div>
+</div>
+<?php endif; ?>
 
 <div class="stagia-list-card">
 <div class="stagia-list-toolbar"><div class="stagia-list-filters w-100">
@@ -110,11 +126,37 @@ Les affectations ne sont jamais supprimées : elles sont révoquées et restent 
 </div></div>
 </div>
 
+<div class="modal fade" id="revokeModal" tabindex="-1" aria-labelledby="revokeModalTitle" aria-hidden="true">
+<div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow">
+<form id="revokeForm">
+<div class="modal-header">
+    <div><h5 class="modal-title" id="revokeModalTitle">Révoquer l’affectation</h5><small class="text-muted">Cette action retire immédiatement les droits correspondants.</small></div>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+</div>
+<div class="modal-body">
+    <input type="hidden" id="revokeAssignmentId">
+    <div class="alert alert-warning d-flex gap-2 align-items-start">
+        <i class="bi bi-exclamation-triangle mt-1"></i>
+        <div id="revokeSummary">Confirmez la révocation de cette affectation.</div>
+    </div>
+    <label class="form-label" for="revokeReason">Motif de la révocation *</label>
+    <textarea id="revokeReason" class="form-control" rows="4" maxlength="500" required placeholder="Expliquez pourquoi cette affectation est révoquée."></textarea>
+    <div class="invalid-feedback">Le motif de la révocation est obligatoire.</div>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annuler</button>
+    <button type="submit" class="btn btn-danger" id="confirmRevokeBtn"><i class="bi bi-shield-x me-1"></i>Révoquer le rôle</button>
+</div>
+</form>
+</div></div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
 const BASE_URL='<?= BASE_URL ?>',SUPER=<?= $isSuper?'true':'false' ?>,$=id=>document.getElementById(id),esc=STAGIA.escape,csrf='<?= $_SESSION['csrf'] ?>';
 const modal=new bootstrap.Modal($('assignmentModal'));
-let items=[],roles=[],users=[],etabs=[],timer=null,hostDeps=[],hostServices=[];
+const revokeModal=new bootstrap.Modal($('revokeModal'));
+let items=[],roles=[],users=[],unassignedUsers=[],etabs=[],timer=null,hostDeps=[],hostServices=[];
 const allScopeOptions=$('scopeType').innerHTML;
 
 function renderAssignmentEstablishments(type=''){
@@ -233,6 +275,7 @@ async function load(){
         items=r.data.items||[];
         roles=r.data.roles||[];
         users=r.data.users||[];
+        unassignedUsers=r.data.unassigned_users||[];
         etabs=r.data.etablissements||[];
 
         if(!SUPER)$('scopeFilter').classList.add('d-none');
@@ -241,8 +284,10 @@ async function load(){
         $('kActive').textContent=r.data.stats.actives;
         $('kPlanned').textContent=r.data.stats.planned;
         $('kRevoked').textContent=r.data.stats.revoked;
+        $('kUnassigned').textContent=r.data.stats.sans_role||0;
 
         fillFilters();
+        renderUnassigned();
         render();
     }catch(e){
         STAGIA.toast(e.message,'danger');
@@ -253,6 +298,21 @@ function fillFilters(){
     const old=$('roleFilter').value;
     $('roleFilter').innerHTML='<option value="">Tous les rôles</option>'+roles.map(r=>`<option value="${r.id}">${esc(r.nom)}</option>`).join('');
     $('roleFilter').value=old;
+}
+
+function renderUnassigned(){
+    const body=$('unassignedBody');
+    if(!body)return;
+
+    body.innerHTML=unassignedUsers.length?unassignedUsers.map(u=>`<tr>
+        <td><strong>${esc([u.prenom,u.nom,u.postnom].filter(Boolean).join(' '))}</strong><small class="d-block text-muted">${esc(u.email||'')}</small></td>
+        <td>${esc(u.identifiant||'—')}</td>
+        <td class="text-center"><button class="btn btn-sm btn-primary-stagia assign-unassigned" data-id="${u.id}"><i class="bi bi-person-check me-1"></i>Attribuer un rôle</button></td>
+    </tr>`).join(''):'<tr><td colspan="3" class="text-center py-4 text-muted">Tous les utilisateurs possèdent un rôle actif.</td></tr>';
+
+    body.querySelectorAll('.assign-unassigned').forEach(button=>{
+        button.onclick=()=>newAssignment(Number(button.dataset.id));
+    });
 }
 
 function render(){
@@ -297,12 +357,13 @@ function render(){
     document.querySelectorAll('.reactivate').forEach(b=>b.onclick=()=>reactivate(Number(b.dataset.id)));
 }
 
-window.newAssignment=()=>{
+window.newAssignment=(selectedUserId=0)=>{
     $('form').reset();
     ensureChefFields();
     showChefFields(false);
 
-    $('userId').innerHTML='<option value="">Sélectionner...</option>'+users.map(u=>`<option value="${u.id}">${esc([u.prenom,u.nom,u.postnom].filter(Boolean).join(' '))} · ${esc(u.email||u.identifiant||'')}</option>`).join('');
+    $('userId').innerHTML='<option value="">Sélectionner...</option>'+users.map(u=>`<option value="${u.id}">${esc([u.prenom,u.nom,u.postnom].filter(Boolean).join(' '))} · ${esc(u.email||u.identifiant||'')}${Number(u.has_active_role)===0?' · sans rôle actif':''}</option>`).join('');
+    if(selectedUserId)$('userId').value=String(selectedUserId);
     $('roleId').innerHTML='<option value="">Sélectionner...</option>'+roles.map(r=>`<option value="${r.id}">${esc(r.nom)} · ${esc(r.code)}</option>`).join('');
 
     renderAssignmentEstablishments();
@@ -388,6 +449,16 @@ async function adaptScope(){
     }
 
     const selectedRole=roles.find(r=>Number(r.id)===Number($('roleId').value));
+
+    if(selectedRole&&selectedRole.code==='STAGIAIRE'){
+        $('scopeType').innerHTML='<option value="SELF">SELF — Données personnelles de l’étudiant</option>';
+        $('scopeType').value='SELF';
+        $('entityWrap').classList.add('d-none');
+        $('etabWrap').classList.add('d-none');
+        $('contextWrap').classList.add('d-none');
+        $('scopeHelp').innerHTML='<i class="bi bi-mortarboard me-1"></i>Le rôle STAGIAIRE est limité automatiquement aux données personnelles de cet étudiant.';
+        return;
+    }
 
     if(selectedRole&&selectedRole.code==='MINISTERE'){
         $('scopeType').innerHTML='<option value="ORGANIZATION">ORGANIZATION — Ministère représenté</option>';
@@ -498,28 +569,46 @@ async function makePrincipal(id){
     }
 }
 
-async function revoke(id){
-    const reason=prompt('Motif de révocation :');
+function revoke(id){
+    const assignment=items.find(item=>Number(item.id)===Number(id));
+    if(!assignment)return;
 
-    if(reason===null)return;
-    if(!reason.trim()){
-        STAGIA.toast('Le motif est obligatoire.','warning');
+    $('revokeAssignmentId').value=String(id);
+    $('revokeReason').value='';
+    $('revokeReason').classList.remove('is-invalid');
+    const user=[assignment.prenom,assignment.nom,assignment.postnom].filter(Boolean).join(' ');
+    $('revokeSummary').innerHTML=`Vous allez révoquer le rôle <strong>${esc(assignment.role_nom)}</strong> de <strong>${esc(user)}</strong>.`;
+    revokeModal.show();
+    $('revokeModal').addEventListener('shown.bs.modal',()=>$('revokeReason').focus(),{once:true});
+}
+
+$('revokeForm').onsubmit=async event=>{
+    event.preventDefault();
+    const id=Number($('revokeAssignmentId').value||0);
+    const reason=$('revokeReason').value.trim();
+
+    if(!id||!reason){
+        $('revokeReason').classList.add('is-invalid');
         return;
     }
 
     const d=new FormData();
     d.append('csrf',csrf);
     d.append('id',id);
-    d.append('reason',reason.trim());
+    d.append('reason',reason);
+    STAGIA.loading($('confirmRevokeBtn'),true);
 
     try{
         const r=await STAGIA.post(BASE_URL+'/actions/admin/affectations/status.php',d);
+        revokeModal.hide();
         STAGIA.toast(r.message);
         await load();
     }catch(e){
         STAGIA.toast(e.message,'danger');
+    }finally{
+        STAGIA.loading($('confirmRevokeBtn'),false);
     }
-}
+};
 
 async function reactivate(id){
     if(!STAGIA.confirm('Réactiver cette affectation ?'))return;

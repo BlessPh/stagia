@@ -40,6 +40,12 @@ try{
         apiResponse(false,"Ce compte ne possède plus d'accès actif.",[],403);
     }
 
+    if(!in_array('STAGIAIRE',$access['role_codes']??[],true)){
+        $pdo->prepare('DELETE FROM api_tokens WHERE id=?')->execute([$session['token_id']]);
+        $pdo->commit();
+        apiResponse(false,'Accès mobile réservé aux étudiants ayant le rôle STAGIAIRE.',[],403);
+    }
+
     $newAccess=apiRandomToken(32);
     $newRefresh=apiRandomToken(48);
     $stmt=$pdo->prepare("

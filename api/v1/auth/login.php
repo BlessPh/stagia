@@ -37,6 +37,10 @@ try{
         apiResponse(false,$message,[],403);
     }
 
+    if(!in_array('STAGIAIRE',$access['role_codes']??[],true)){
+        apiResponse(false,'Accès mobile réservé aux étudiants ayant le rôle STAGIAIRE.',[],403);
+    }
+
     $identity=apiUserData($pdo,(int)$user['id']);
     if(!$identity){
         apiResponse(false,'Utilisateur introuvable.',[],404);

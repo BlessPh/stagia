@@ -53,13 +53,34 @@ try{
 
     if($super){
         $roles=$pdo->query("SELECT id,code,nom FROM roles WHERE actif=1 ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
-        $users=$pdo->query("SELECT id,nom,postnom,prenom,email,identifiant FROM users WHERE statut_compte<>'SUSPENDU' ORDER BY nom,postnom,prenom")->fetchAll(PDO::FETCH_ASSOC);
+        $users=$pdo->query("SELECT u.id,u.nom,u.postnom,u.prenom,u.email,u.identifiant,
+            EXISTS(
+                SELECT 1 FROM role_assignments ura
+                JOIN roles ur ON ur.id=ura.role_id AND ur.actif=1
+                WHERE ura.user_id=u.id AND ura.actif=1
+                  AND (ura.starts_at IS NULL OR ura.starts_at<=NOW())
+                  AND (ura.ends_at IS NULL OR ura.ends_at>=NOW())
+            ) has_active_role
+            FROM users u
+            WHERE u.statut_compte<>'SUSPENDU'
+            ORDER BY has_active_role,u.nom,u.postnom,u.prenom")->fetchAll(PDO::FETCH_ASSOC);
         $etabs=$pdo->query("SELECT id,code,nom,type_etablissement FROM etablissements WHERE statut IN('VALIDE','ACTIF') ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
         $stats=$pdo->query("SELECT COUNT(*) total,SUM(actif=1 AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>=NOW())) actives,SUM(actif=1 AND starts_at>NOW()) planned,SUM(actif=0) revoked FROM role_assignments")->fetch(PDO::FETCH_ASSOC);
     }else{
         $ph=implode(',',array_fill(0,count($allowed),'?'));
         $s=$pdo->prepare("SELECT id,code,nom FROM roles WHERE actif=1 AND ((systeme=1 AND code IN($ph)) OR (systeme=0 AND etablissement_id=?)) ORDER BY systeme DESC,nom");$s->execute([...$allowed,$eid]);$roles=$s->fetchAll(PDO::FETCH_ASSOC);
-        $s=$pdo->prepare("SELECT DISTINCT u.id,u.nom,u.postnom,u.prenom,u.email,u.identifiant FROM users u JOIN etablissement_users eu ON eu.user_id=u.id WHERE eu.etablissement_id=? AND u.statut_compte<>'SUSPENDU' ORDER BY u.nom,u.postnom,u.prenom");$s->execute([$eid]);$users=$s->fetchAll(PDO::FETCH_ASSOC);
+        $s=$pdo->prepare("SELECT DISTINCT u.id,u.nom,u.postnom,u.prenom,u.email,u.identifiant,
+            EXISTS(
+                SELECT 1 FROM role_assignments ura
+                JOIN roles ur ON ur.id=ura.role_id AND ur.actif=1
+                WHERE ura.user_id=u.id AND ura.actif=1
+                  AND (ura.starts_at IS NULL OR ura.starts_at<=NOW())
+                  AND (ura.ends_at IS NULL OR ura.ends_at>=NOW())
+            ) has_active_role
+            FROM users u
+            JOIN etablissement_users eu ON eu.user_id=u.id
+            WHERE eu.etablissement_id=? AND u.statut_compte<>'SUSPENDU'
+            ORDER BY has_active_role,u.nom,u.postnom,u.prenom");$s->execute([$eid]);$users=$s->fetchAll(PDO::FETCH_ASSOC);
         $s=$pdo->prepare("SELECT id,code,nom,type_etablissement FROM etablissements WHERE id=? LIMIT 1");$s->execute([$eid]);$etabs=$s->fetchAll(PDO::FETCH_ASSOC);
         $statScope=$actor==='ADMIN_ACCUEIL'
             ?"(((r.code IN('ADMIN_ACCUEIL','COORDINATEUR_STAGES','ENCADREUR','GESTIONNAIRE_FINANCIER_HOSPITALIER') OR (r.systeme=0 AND r.etablissement_id=".(int)$eid.")) AND ra.scope_type='ORGANIZATION') OR (r.code='POINTEUR' AND (ra.scope_type='ORGANIZATION' OR (ra.scope_type='UNIT' AND ra.scope_entity='HOST_UNIT'))) OR (r.code IN('CHEF_SERVICE','EVALUATEUR_CLINIQUE') AND ra.scope_type='UNIT' AND ra.scope_entity='HOST_UNIT'))"
@@ -67,7 +88,14 @@ try{
         $s=$pdo->prepare("SELECT COUNT(*) total,SUM(ra.actif=1 AND (ra.starts_at IS NULL OR ra.starts_at<=NOW()) AND (ra.ends_at IS NULL OR ra.ends_at>=NOW())) actives,SUM(ra.actif=1 AND ra.starts_at>NOW()) planned,SUM(ra.actif=0) revoked FROM role_assignments ra JOIN roles r ON r.id=ra.role_id WHERE ra.etablissement_id=? AND $statScope");$s->execute([$eid]);$stats=$s->fetch(PDO::FETCH_ASSOC);
     }
 
-    jsonResponse(true,'',['items'=>$items,'roles'=>$roles,'users'=>$users,'etablissements'=>$etabs,'stats'=>array_map('intval',$stats)]);
+    $unassignedUsers=array_values(array_filter(
+        $users,
+        static fn(array $user):bool=>(int)($user['has_active_role']??0)===0
+    ));
+    $stats=array_map('intval',$stats);
+    $stats['sans_role']=count($unassignedUsers);
+
+    jsonResponse(true,'',['items'=>$items,'roles'=>$roles,'users'=>$users,'unassigned_users'=>$unassignedUsers,'etablissements'=>$etabs,'stats'=>$stats]);
 }catch(Throwable $e){
     error_log('[ROLE ASSIGNMENTS LIST] '.$e->getMessage());
     jsonResponse(false,'Erreur serveur : '.$e->getMessage(),[],500);

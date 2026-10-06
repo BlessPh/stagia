@@ -11,6 +11,7 @@ ignore_user_abort(true);
 require_once __DIR__.'/../config/config.php';
 require_once __DIR__.'/../config/database.php';
 require_once __DIR__.'/../services/MailService.php';
+require_once __DIR__.'/../includes/student-role-assignment.php';
 
 $jobUuid=trim($argv[1]??'');
 
@@ -24,37 +25,6 @@ function workerFailJob(PDO $pdo,string $jobUuid,string $error):void
     $stmt->execute([
         mb_substr($error,0,4000),
         $jobUuid
-    ]);
-}
-
-function workerTableExists(PDO $pdo,string $table):bool
-{
-    $stmt=$pdo->prepare("\n        SELECT COUNT(*)\n        FROM information_schema.TABLES\n        WHERE TABLE_SCHEMA=DATABASE()\n          AND TABLE_NAME=?\n    ");
-    $stmt->execute([$table]);
-    return (int)$stmt->fetchColumn()>0;
-}
-
-function ensureStudentSelfRole(
-    PDO $pdo,
-    int $userId,
-    int $roleId,
-    int $etablissementId,
-    ?int $assignedBy
-):void {
-    if(!workerTableExists($pdo,'role_assignments')) return;
-
-    $stmt=$pdo->prepare("\n        SELECT id\n        FROM role_assignments\n        WHERE user_id=?\n          AND role_id=?\n          AND scope_type='SELF'\n          AND actif=1\n        LIMIT 1\n    ");
-    $stmt->execute([$userId,$roleId]);
-
-    if($stmt->fetchColumn()) return;
-
-    $stmt=$pdo->prepare("\n        INSERT INTO role_assignments(\n            user_id,role_id,scope_type,scope_id,etablissement_id,\n            principal,actif,assigned_by\n        )\n        VALUES(?,?,'SELF',?,?,1,1,?)\n    ");
-    $stmt->execute([
-        $userId,
-        $roleId,
-        $userId,
-        $etablissementId,
-        $assignedBy
     ]);
 }
 
@@ -212,10 +182,9 @@ try{
                     }
                 }
 
-                ensureStudentSelfRole(
+                ensureStudentRoleAssignment(
                     $pdo,
                     $accountUserId,
-                    $roleId,
                     (int)$job['etablissement_id'],
                     $job['created_by_user_id']?(int)$job['created_by_user_id']:null
                 );
