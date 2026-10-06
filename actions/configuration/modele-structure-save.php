@@ -25,6 +25,7 @@ function makeCode(string $value,string $fallback):string{
 }
 
 try{
+    $operation='chargement du modèle académique';
     $pdo->beginTransaction();
 
     $s=$pdo->prepare("SELECT * FROM academic_structure_templates WHERE id=? LIMIT 1 FOR UPDATE");
@@ -56,6 +57,7 @@ try{
     }
 
     if($entity==='DEPARTMENT'){
+        $operation='validation du département national';
         $nom=trim($_POST['nom']??'');
         $unit=(int)($_POST['unit_id']??0)?:null;
         $ordre=(int)($_POST['ordre']??0);
@@ -67,6 +69,11 @@ try{
         if($unit&&!(int)$tpl['unite_academique_active'])
             throw new RuntimeException(
                 "Ce modèle n'utilise pas les unités académiques. Enregistrez le département sans unité parente."
+            );
+
+        if((int)$tpl['unite_academique_active']===1&&!$unit)
+            throw new RuntimeException(
+                "Sélectionnez l'unité académique parente de ce département."
             );
 
         if($unit){
@@ -81,6 +88,7 @@ try{
         }
 
         if($id){
+            $operation='mise à jour du département national';
             $s=$pdo->prepare("
                 SELECT code
                 FROM academic_template_departments
@@ -98,10 +106,12 @@ try{
                 WHERE id=? AND template_id=?
             ")->execute([$unit,$nom,$ordre,$id,$templateId]);
 
+            $operation='propagation du département national';
             syncAcademicTemplateDepartment($pdo,$templateId,$id);
         }else{
             $code=makeAcademicTemplateDepartmentCode($pdo,$templateId,$nom);
 
+            $operation='création du département national';
             $pdo->prepare("
                 INSERT INTO academic_template_departments(
                     template_id,unit_id,code,nom,ordre,actif
@@ -109,6 +119,7 @@ try{
             ")->execute([$templateId,$unit,$code,$nom,$ordre]);
 
             $id=(int)$pdo->lastInsertId();
+            $operation='propagation du département national';
             syncAcademicTemplateDepartment($pdo,$templateId,$id);
         }
     }
@@ -267,5 +278,6 @@ try{
     jsonResponse(true,'Structure du modèle enregistrée.');
 }catch(Throwable $e){
     if($pdo->inTransaction())$pdo->rollBack();
-    jsonResponse(false,$e->getMessage(),[],422);
+    error_log('[MODELE STRUCTURE SAVE] '.$operation.' | '.$e->getMessage().' | '.$e->getFile().':'.$e->getLine());
+    jsonResponse(false,'Échec pendant '.$operation.' : '.$e->getMessage(),[],422);
 }

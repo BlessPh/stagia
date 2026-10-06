@@ -49,6 +49,8 @@ function syncAcademicTemplateDepartment(PDO $pdo,int $templateId,int $templateDe
         $eid=(int)$eidRaw;
         $faculteId=null;
 
+        try{
+
         if($templateUnitId){
             $u=$pdo->prepare("
                 SELECT id
@@ -131,6 +133,13 @@ function syncAcademicTemplateDepartment(PDO $pdo,int $templateId,int $templateDe
                 $dep['code'],
                 $dep['nom']
             ]);
+        }
+        }catch(Throwable $e){
+            throw new RuntimeException(
+                "Propagation du département vers l'établissement #{$eid} impossible : ".$e->getMessage(),
+                0,
+                $e
+            );
         }
     }
 }

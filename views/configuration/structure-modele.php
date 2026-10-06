@@ -178,12 +178,18 @@ function open(entity,x=null){
         <div class="col-md-6"><label class="form-label">Parente</label><select name="parent_id" class="form-select"><option value="">Aucune</option>${optionList(data.units.filter(u=>u.id!==x?.id),x?.parent_id||'')}</select></div>
         <div class="col-md-2"><label class="form-label">Ordre</label><input type="number" name="ordre" class="form-control" value="${x?.ordre||0}"></div></div>`;
 
-    if(entity==='DEPARTMENT')$('dynamicFields').innerHTML=`
+    if(entity==='DEPARTMENT'){
+        const unitsEnabled=Number(data.template.unite_academique_active)===1;
+        const unitOptions=unitsEnabled&&data.units.length
+            ?'<option value="">Sélectionner l’unité parente...</option>'+optionList(data.units,x?.unit_id||'')
+            :'<option value="">'+(unitsEnabled?'Aucune unité active : créez d’abord une unité':'Aucun parent requis pour ce modèle')+'</option>';
+        $('dynamicFields').innerHTML=`
         <div class="row g-3">
         <div class="col-md-7"><label class="form-label">Nom *</label><input name="nom" class="form-control" value="${esc(x?.nom||'')}" required></div>
-        <div class="col-md-5"><label class="form-label">Unité académique</label><select name="unit_id" class="form-select"><option value="">Aucune / direct</option>${Number(data.template.unite_academique_active)===1?optionList(data.units,x?.unit_id||''):''}</select></div>
+        <div class="col-md-5"><label class="form-label">Unité académique${unitsEnabled?' *':''}</label><select name="unit_id" class="form-select" ${unitsEnabled?'required':''} ${unitsEnabled&&!data.units.length?'disabled':''}>${unitOptions}</select>${unitsEnabled&&!data.units.length?'<small class="text-danger">Ajoutez et activez d’abord une unité académique.</small>':''}</div>
         
         <div class="col-md-4"><label class="form-label">Ordre</label><input type="number" name="ordre" class="form-control" value="${x?.ordre||0}"></div></div>`;
+    }
 
     if(entity==='PROGRAM'){
         const mode=x?.department_id?'DEPARTMENT':(x?.unit_id?'UNIT':'ESTABLISHMENT');
