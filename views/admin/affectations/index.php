@@ -636,6 +636,13 @@ $('resetBtn').onclick=()=>{
     load();
 };
 
+/* Actualiser automatiquement le passage Planifiée -> Active. */
+setInterval(()=>{
+    if(document.hidden)return;
+    if($('assignmentModal').classList.contains('show')||$('revokeModal').classList.contains('show'))return;
+    load();
+},30000);
+
 load();
 });
 </script>

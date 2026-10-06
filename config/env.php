@@ -27,3 +27,15 @@ function chargerEnvironnementStagia(?string $fichier=null):void{
 
 /* Chargement automatique afin que les autres fichiers de configuration accèdent aux variables. */
 chargerEnvironnementStagia();
+
+/*
+ * Les champs datetime-local transportent une heure locale sans fuseau.
+ * PHP doit donc utiliser le même fuseau sur WAMP et sur Render.
+ */
+$stagiaTimezone=trim((string)(getenv('APP_TIMEZONE')?:'Africa/Kinshasa'));
+try{
+    new DateTimeZone($stagiaTimezone);
+    date_default_timezone_set($stagiaTimezone);
+}catch(Throwable){
+    date_default_timezone_set('Africa/Kinshasa');
+}

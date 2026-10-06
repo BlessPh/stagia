@@ -51,6 +51,38 @@ try {
         $options
     );
 
+    /* Aligner NOW() de MySQL sur les heures locales saisies dans l'interface. */
+    $timezoneName=trim((string)(getenv('APP_TIMEZONE')?:date_default_timezone_get()));
+
+    /* Le paramètre administrable est utilisé si l'environnement n'impose rien. */
+    if(getenv('APP_TIMEZONE')===false){
+        try{
+            $timezoneSetting=$pdo->query("
+                SELECT setting_value
+                FROM system_settings
+                WHERE setting_key='platform.timezone'
+                LIMIT 1
+            ")->fetchColumn();
+            if(is_string($timezoneSetting)&&trim($timezoneSetting)!==''){
+                new DateTimeZone(trim($timezoneSetting));
+                $timezoneName=trim($timezoneSetting);
+            }
+        }catch(Throwable){
+            /* Installation ancienne sans table system_settings : garder le défaut. */
+        }
+    }
+
+    try{
+        $timezone=new DateTimeZone($timezoneName);
+        date_default_timezone_set($timezoneName);
+    }catch(Throwable){
+        $timezone=new DateTimeZone('Africa/Kinshasa');
+        date_default_timezone_set('Africa/Kinshasa');
+    }
+
+    $timezoneOffset=(new DateTimeImmutable('now',$timezone))->format('P');
+    $pdo->exec('SET time_zone='.$pdo->quote($timezoneOffset));
+
 } catch (Throwable $e) {
 
     error_log('Connexion base de donnees: '.$e->getMessage());
