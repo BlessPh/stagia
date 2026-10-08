@@ -107,6 +107,7 @@ Les statuts synthétiques du workflow sont :
 | `GET` | `/student/reservations` | Consulter les réservations et les actions disponibles |
 | `POST` | `/student/reservations/{uuid}/cancel` | Annuler une réservation temporaire |
 | `GET` | `/student/payments` | Consulter les obligations, factures et paiements |
+| `GET` | `/student/payments/{obligation_uuid}` | Consulter une facture ciblée depuis une notification |
 | `POST` | `/student/payments/initiate` | Initier un paiement Mobile Money |
 | `POST` | `/student/payments/sync` | Resynchroniser l’état financier d’une réservation |
 | `GET` | `/student/admissions` | Suivre placement, admission et affectation |
@@ -116,11 +117,12 @@ Les statuts synthétiques du workflow sont :
 
 ## Fonctionnement réel du paiement Mobile Money
 
-1. `GET /student/payments` charge les obligations, les montants et l’historique. Cette route ne déclenche aucun débit.
-2. `POST /student/payments/initiate` transmet à MaishaPay l’obligation, l’opérateur, le numéro et le montant restant. Une réponse `PENDING` signifie seulement que la demande USSD a été acceptée par la passerelle.
-3. L’opérateur affiche la demande sur le téléphone. L’étudiant saisit son code PIN directement dans l’interface de l’opérateur; le PIN ne transite jamais par STAGIA.
-4. MaishaPay appelle `/maishapay-callback.php` avec l’issue finale signée. Le serveur enregistre `SUCCEEDED`, `FAILED` ou `CANCELLED`, met à jour l’obligation et applique les conséquences métier.
-5. L’application appelle périodiquement `POST /student/payments/sync` pour relire cet état jusqu’à obtenir un résultat terminal. Une notification est également créée après confirmation ou échec.
+1. Une notification `financial.obligation.created` fournit `action.type=payment`, l’UUID dans `action.target_id` et la route de détail dans `action.metadata.detail_endpoint`.
+2. `GET /student/payments/{obligation_uuid}` charge la facture ciblée, son contexte et les actions autorisées. `GET /student/payments` reste disponible pour toute la collection.
+3. `POST /student/payments/initiate` transmet à MaishaPay l’obligation, l’opérateur, le numéro et le montant restant. Une réponse `PENDING` signifie seulement que la demande USSD a été acceptée par la passerelle.
+4. L’opérateur affiche la demande sur le téléphone. L’étudiant saisit son code PIN directement dans l’interface de l’opérateur; le PIN ne transite jamais par STAGIA.
+5. MaishaPay appelle `/maishapay-callback.php` avec l’issue finale signée. Le serveur enregistre `SUCCEEDED`, `FAILED` ou `CANCELLED`, met à jour l’obligation et applique les conséquences métier.
+6. L’application appelle périodiquement `POST /student/payments/sync` pour relire cet état jusqu’à obtenir un résultat terminal. Une notification est également créée après confirmation ou échec.
 
 `initiate` ne doit donc jamais être interprété comme une réussite financière. Le webhook est la source de l’issue finale et `sync` restitue l’état enregistré par ce webhook.
 
@@ -589,7 +591,57 @@ La réponse contient deux collections :
 
 `BANQUE` et `CARTE` figurent dans le catalogue global, mais l’initiation en ligne MaishaPay accepte actuellement les quatre canaux Mobile Money.
 
-## 7. Initier un paiement Mobile Money
+## 7. Consulter une obligation ou une facture
+
+```http
+GET /api/v1/student/payments/{obligation_uuid}
+Authorization: Bearer <access_token>
+```
+
+Cette route est la cible de l’action envoyée avec la notification de paiement. L’application mobile lit `action.target_id`, ouvre son écran de facture, puis appelle cette route. Une obligation appartenant à un autre utilisateur retourne `404` sans divulguer son existence.
+
+### Réponse attendue
+
+```json
+{
+  "success": true,
+  "message": "Obligation financière chargée.",
+  "data": {
+    "obligation": {
+      "uuid": "109114cb-d48f-4220-8e67-0bc7469d6abd",
+      "reference": "OBL-2026-000052",
+      "type": "STAGE_RESERVATION",
+      "label": "Frais de réservation de stage",
+      "amount": 10000,
+      "currency": "CDF",
+      "status": "PENDING",
+      "amount_paid": 0,
+      "amount_remaining": 10000,
+      "payment_status": "NOT_STARTED",
+      "payable": true,
+      "payment_pending": false,
+      "due_at": null,
+      "payments": [],
+      "context": {
+        "type": "STAGE_RESERVATION",
+        "reservation": {"uuid": "24e27142-f88d-4655-b7db-1ae4f27e39b0", "status": "EN_ATTENTE_PAIEMENT", "expires_at": null},
+        "application": {"uuid": "9fb326fc-38a9-4eed-96ef-c33dfe55cc83", "status": "ACCEPTEE"},
+        "campaign": {"id": 39, "uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage de fin d'année 2026", "start_date": "2026-10-01", "end_date": "2026-10-31"},
+        "hospital": {"id": 8, "code": "HOP-001", "name": "Hôpital Général", "phone": "+243810000000", "email": null, "address": null, "city": "Kinshasa", "province": "Kinshasa"},
+        "invoice": {"uuid": "invoice-uuid", "reference": "FAC-STG-00000052", "amount": 10000, "currency": "CDF", "status": "EMISE", "issued_at": "2026-10-08 10:00:00", "due_at": null, "paid_at": null}
+      },
+      "actions": {
+        "initiate": {"allowed": true, "method": "POST", "path": "/api/v1/student/payments/initiate", "required_body": ["obligation_uuid", "channel", "phone_number"], "required_header": "Idempotency-Key"},
+        "sync": {"allowed": false, "method": "POST", "path": "/api/v1/student/payments/sync", "body": {"obligation_uuid": "109114cb-d48f-4220-8e67-0bc7469d6abd"}}
+      }
+    }
+  }
+}
+```
+
+Pour une obligation qui n’est pas liée à un stage, `context` peut valoir `null`. `actions.initiate.allowed` et `actions.sync.allowed` doivent piloter les boutons de l’interface mobile.
+
+## 8. Initier un paiement Mobile Money
 
 ```http
 POST /api/v1/student/payments/initiate
@@ -655,7 +707,7 @@ Une nouvelle transaction retourne `201`. La répétition avec la même clé reto
 
 Erreurs principales : `404` pour une facture introuvable, `409` si elle n’est pas payable, `422` pour une cible, un canal, un téléphone ou une clé invalide.
 
-## 8. Synchroniser l’état d’un paiement
+## 9. Synchroniser l’état d’un paiement
 
 ```http
 POST /api/v1/student/payments/sync
@@ -693,7 +745,7 @@ POST /api/v1/student/payments/sync
 
 Dans certains cas techniques, `payment_status` peut aussi valoir `NOT_CONFIRMED` si le paiement ne permet pas encore de confirmer la réservation.
 
-## 9. Suivre l’admission et l’affectation
+## 10. Suivre l’admission et l’affectation
 
 ```http
 GET /api/v1/student/admissions
@@ -757,7 +809,7 @@ GET /api/v1/student/admissions?reservation_uuid=24e27142-f88d-4655-b7db-1ae4f27e
 
 Les objets `placement`, `admission` et `assignment` contiennent toujours le champ `exists`, ce qui permet à l’interface d’afficher l’étape courante sans déductions fragiles.
 
-## 10. Consulter les affectations et rotations
+## 11. Consulter les affectations et rotations
 
 ```http
 GET /api/v1/student/stages

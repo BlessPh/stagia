@@ -1,7 +1,7 @@
 {
   "document": {
     "title": "API étudiant — des campagnes aux rotations",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "updated_at": "2026-10-08",
     "base_path": "/api/v1",
     "language": "fr",
@@ -36,6 +36,7 @@
   ],
   "mobile_payment_flow": [
     "GET /student/payments liste les obligations et l'historique sans déclencher de débit.",
+    "GET /student/payments/{obligation_uuid} charge la facture ciblée par une notification et les actions actuellement autorisées.",
     "POST /student/payments/initiate envoie la demande C2B à MaishaPay et retourne normalement PENDING; ce résultat ne prouve pas encore le paiement.",
     "L'étudiant confirme ou refuse la demande sur son téléphone avec son code PIN opérateur.",
     "MaishaPay appelle le webhook serveur /maishapay-callback.php avec l'issue finale signée.",
@@ -299,6 +300,32 @@
       "note": "BANQUE et CARTE sont exposés dans le catalogue mais l'initiation en ligne MaishaPay accepte actuellement uniquement les quatre canaux Mobile Money."
     },
     {
+      "id": "get_payment_detail",
+      "method": "GET",
+      "path": "/student/payments/{obligation_uuid}",
+      "purpose": "Charger la fiche d'une obligation financière depuis une notification ou une liste de paiements.",
+      "path_parameters": {
+        "obligation_uuid": "UUID reçu dans notification.action.target_id"
+      },
+      "success_status": 200,
+      "data": {
+        "obligation": "FinancialObligationDetail"
+      },
+      "financial_obligation_detail": {
+        "base": "Tous les champs de FinancialObligation, y compris la collection payments.",
+        "context": "Contexte métier|null. Pour STAGE_RESERVATION : reservation, application, campaign, hospital et invoice.",
+        "actions": {
+          "initiate": "{allowed, method, path, required_body, required_header}",
+          "sync": "{allowed, method, path, body}"
+        }
+      },
+      "ownership": "La route ne retourne que les obligations appartenant à l'utilisateur authentifié.",
+      "errors": {
+        "404": "Obligation absente ou appartenant à un autre utilisateur.",
+        "422": "UUID absent ou invalide."
+      }
+    },
+    {
       "id": "initiate_payment",
       "method": "POST",
       "path": "/student/payments/initiate",
@@ -442,6 +469,9 @@
     }
   ],
   "notification_events": [
+    {"event": "financial.obligation.created", "subject": "Paiement requis", "action": {"type": "payment", "target_id": "obligation_uuid", "metadata.detail_endpoint": "/api/v1/student/payments/{obligation_uuid}"}},
+    {"event": "financial.payment.succeeded", "subject": "Paiement confirmé", "action_type": "payment"},
+    {"event": "financial.payment.failed", "subject": "Paiement non abouti", "action_type": "payment"},
     {"event": "stage.reservation.approved", "subject": "Réservation de stage approuvée"},
     {"event": "stage.reservation.payment_required", "subject": "Réservation approuvée — paiement requis"},
     {"event": "stage.reservation.rejected", "subject": "Réservation de stage refusée"},

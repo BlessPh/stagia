@@ -41,7 +41,10 @@ function notifyFinancialObligationCreated(PDO $pdo,array $obligation):void{
                 'amount'=>(float)$obligation['amount'],'currency'=>$currency,'due_at'=>$obligation['due_at']??null,
                 'action'=>[
                     'type'=>'payment','target_id'=>$obligation['uuid'],'label'=>'Payer maintenant',
-                    'title'=>$obligation['label'],'metadata'=>['status'=>$obligation['status']]
+                    'title'=>$obligation['label'],'metadata'=>[
+                        'status'=>$obligation['status'],
+                        'detail_endpoint'=>'/api/v1/student/payments/'.$obligation['uuid']
+                    ]
                 ]
             ]
         );
@@ -70,7 +73,8 @@ function notifyFinancialPaymentResult(PDO $pdo,int $obligationId,string $payment
             '/views/paiements/index.php?obligation='.rawurlencode((string)$obligation['uuid']),
             ['event_key'=>$eventKey,'obligation_uuid'=>$obligation['uuid'],'obligation_reference'=>$obligation['reference'],
                 'payment_status'=>$paymentStatus,'obligation_status'=>$obligation['status'],
-                'action'=>['type'=>'payment','target_id'=>$obligation['uuid'],'label'=>'Voir le paiement','title'=>$obligation['label'],'metadata'=>[]]]
+                'action'=>['type'=>'payment','target_id'=>$obligation['uuid'],'label'=>'Voir le paiement','title'=>$obligation['label'],
+                    'metadata'=>['detail_endpoint'=>'/api/v1/student/payments/'.$obligation['uuid']]]]
         );
     }catch(Throwable $error){
         error_log('[FINANCIAL PAYMENT NOTIFICATION] obligation='.$obligationId.' | '.$error->getMessage());

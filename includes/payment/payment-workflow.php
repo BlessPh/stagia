@@ -19,6 +19,78 @@ function paymentWorkflowCustomer(PDO $pdo,int $userId):array{
     return $stmt->fetch(PDO::FETCH_ASSOC)?:[];
 }
 
+/** Construit la fiche de paiement consommable par les interfaces Web et mobile. */
+function userFinancialObligationDetail(PDO $pdo,int $userId,string $uuid):array{
+    $row=findUserFinancialObligation($pdo,$userId,$uuid);
+    $obligation=financialPublicObligation($pdo,$row,true);
+    $context=null;
+
+    if($row['obligation_type']==='STAGE_RESERVATION'&&$row['subject_type']==='STAGE_RESERVATION'){
+        $stmt=$pdo->prepare("SELECT
+                r.uuid reservation_uuid,r.statut reservation_status,r.expires_at reservation_expires_at,
+                a.uuid application_uuid,a.statut application_status,
+                c.id campaign_id,c.uuid campaign_uuid,c.code campaign_code,c.titre campaign_title,
+                c.date_debut campaign_start_date,c.date_fin campaign_end_date,
+                h.id hospital_id,h.code hospital_code,h.nom hospital_name,h.telephone hospital_phone,
+                h.email hospital_email,h.adresse hospital_address,h.ville hospital_city,h.province hospital_province,
+                i.uuid invoice_uuid,i.reference invoice_reference,i.montant invoice_amount,
+                i.devise invoice_currency,i.statut invoice_status,i.date_emission invoice_issued_at,
+                i.date_echeance invoice_due_at,i.paid_at invoice_paid_at
+            FROM stage_reservations r
+            JOIN stage_applications a ON a.id=r.application_id
+            JOIN student_academic_enrollments ae ON ae.id=a.academic_enrollment_id
+            JOIN student_enrollments se ON se.id=ae.enrollment_id
+            JOIN student_profiles sp ON sp.id=se.student_id AND sp.user_id=?
+            JOIN stage_campaigns c ON c.id=a.campaign_id
+            JOIN etablissements h ON h.id=a.host_etablissement_id
+            LEFT JOIN stage_invoices i ON i.reservation_id=r.id
+            WHERE r.id=? LIMIT 1");
+        $stmt->execute([$userId,(int)$row['subject_key']]);
+        if($stage=$stmt->fetch(PDO::FETCH_ASSOC)){
+            $context=[
+                'type'=>'STAGE_RESERVATION',
+                'reservation'=>[
+                    'uuid'=>$stage['reservation_uuid'],'status'=>$stage['reservation_status'],
+                    'expires_at'=>$stage['reservation_expires_at']
+                ],
+                'application'=>['uuid'=>$stage['application_uuid'],'status'=>$stage['application_status']],
+                'campaign'=>[
+                    'id'=>(int)$stage['campaign_id'],'uuid'=>$stage['campaign_uuid'],
+                    'code'=>$stage['campaign_code'],'title'=>$stage['campaign_title'],
+                    'start_date'=>$stage['campaign_start_date'],'end_date'=>$stage['campaign_end_date']
+                ],
+                'hospital'=>[
+                    'id'=>(int)$stage['hospital_id'],'code'=>$stage['hospital_code'],'name'=>$stage['hospital_name'],
+                    'phone'=>$stage['hospital_phone'],'email'=>$stage['hospital_email'],
+                    'address'=>$stage['hospital_address'],'city'=>$stage['hospital_city'],'province'=>$stage['hospital_province']
+                ],
+                'invoice'=>$stage['invoice_uuid']!==null?[
+                    'uuid'=>$stage['invoice_uuid'],'reference'=>$stage['invoice_reference'],
+                    'amount'=>(float)$stage['invoice_amount'],'currency'=>$stage['invoice_currency'],
+                    'status'=>$stage['invoice_status'],'issued_at'=>$stage['invoice_issued_at'],
+                    'due_at'=>$stage['invoice_due_at'],'paid_at'=>$stage['invoice_paid_at']
+                ]:null
+            ];
+        }
+    }
+
+    $obligation['context']=$context;
+    $obligation['actions']=[
+        'initiate'=>[
+            'allowed'=>(bool)$obligation['payable'],'method'=>'POST',
+            'path'=>'/api/v1/student/payments/initiate',
+            'required_body'=>['obligation_uuid','channel','phone_number'],
+            'required_header'=>'Idempotency-Key'
+        ],
+        'sync'=>[
+            'allowed'=>(bool)$obligation['payment_pending'],'method'=>'POST',
+            'path'=>'/api/v1/student/payments/sync',
+            'body'=>['obligation_uuid'=>$obligation['uuid']]
+        ]
+    ];
+    return $obligation;
+}
+
 /** Rattache les anciennes factures de stage encore payables au registre financier unifié. */
 function ensurePayableFinancialObligationsForUser(PDO $pdo,int $userId):void{
     try{

@@ -18,6 +18,8 @@ RewriteCond %{REQUEST_METHOD} ^POST$
 RewriteRule ^student/payments/initiate/?$ student/payment-initiate.php [L,QSA]
 RewriteCond %{REQUEST_METHOD} ^POST$
 RewriteRule ^student/payments/sync/?$ student/payment-sync.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^GET$
+RewriteRule ^student/payments/([A-Fa-f0-9-]+)/?$ student/payment-detail.php?uuid=$1 [L,QSA]
 RewriteRule ^student/payments/?$ student/payments.php [L,QSA]
 RewriteRule ^student/admissions/?$ student/admission.php [L,QSA]
 
