@@ -2,6 +2,7 @@
 
 require_once __DIR__.'/../bootstrap.php';
 require_once __DIR__.'/../../../includes/stage-student-payment.php';
+require_once __DIR__.'/../../../includes/payment/payment-workflow.php';
 
 requireApiMethod('POST');
 $student=requireApiStudent($pdo);
@@ -12,8 +13,10 @@ if(trim((string)($input['idempotency_key']??''))==='')
     apiResponse(false,"La clé d'idempotence est obligatoire.",[],422);
 
 try{
-    $result=initiateStudentStagePayment($pdo,(int)$student['student_id'],(int)$student['user_id'],$input,'STAGIA_MOBILE');
-    $created=(bool)($result['payment']['created']??false);
+    $result=trim((string)($input['obligation_uuid']??''))!==''
+        ?initiateUserFinancialPayment($pdo,(int)$student['user_id'],$input)
+        :initiateStudentStagePayment($pdo,(int)$student['student_id'],(int)$student['user_id'],$input,'STAGIA_MOBILE');
+    $created=(bool)($result['created']??$result['payment']['created']??false);
     apiResponse(true,$created?'Paiement initié. En attente de confirmation de l’opérateur.':'Cette demande de paiement a déjà été prise en compte.',$result,$created?201:200);
 }catch(InvalidArgumentException $e){
     apiResponse(false,$e->getMessage(),[],422);

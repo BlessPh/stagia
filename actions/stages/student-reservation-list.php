@@ -5,6 +5,7 @@
  */
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-student-workflow.php';
 
 /* Un stagiaire ne peut consulter que son propre historique de réservation. */
 requireAjaxRole(['STAGIAIRE']);
@@ -32,15 +33,8 @@ try{
     if(!$studentId)
         jsonResponse(false,'Profil étudiant introuvable.',[],404);
 
-    /* Expirer automatiquement les réservations dépassées */
-    /* Expiration automatique des réservations temporaires dont le délai est dépassé. */
-    $pdo->exec("
-        UPDATE stage_reservations
-        SET statut='EXPIREE'
-        WHERE statut='RESERVEE_TEMPORAIREMENT'
-          AND expires_at IS NOT NULL
-          AND expires_at<=NOW()
-    ");
+    /* Expire uniquement les réservations de l'étudiant et lui envoie une notification. */
+    expireStudentTemporaryReservations($pdo,$studentId);
 
     /* Réservations appartenant uniquement à l'étudiant connecté */
     /* Les réservations sont jointes à la campagne, l'hôpital et aux éventuels frais. */

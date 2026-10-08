@@ -7,6 +7,8 @@
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/permissions.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-student-notifications.php';
+require_once __DIR__.'/../../includes/payment/financial-obligation.php';
 
 requireAjaxRole(['ADMIN_ETABLISSEMENT','RESPONSABLE_PEDAGOGIQUE']);
 verifyAjaxCsrf();
@@ -38,7 +40,7 @@ try{
         SELECT
             a.id,a.statut,a.campaign_id,a.academic_enrollment_id,a.host_etablissement_id,a.participation_id,
             c.owner_etablissement_id,
-            se.student_id,
+            se.student_id,sp.user_id,
             r.id reservation_id,r.statut reservation_statut,
             p.statut participation_statut,p.frais_requis,p.montant_frais,p.devise,
             COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0)) capacite_retenue
@@ -46,6 +48,7 @@ try{
         JOIN stage_campaigns c ON c.id=a.campaign_id
         JOIN student_academic_enrollments ae ON ae.id=a.academic_enrollment_id
         JOIN student_enrollments se ON se.id=ae.enrollment_id
+        JOIN student_profiles sp ON sp.id=se.student_id
         LEFT JOIN stage_reservations r ON r.application_id=a.id
         LEFT JOIN stage_campaign_participations p ON p.id=a.participation_id
         WHERE a.id=? AND c.owner_etablissement_id=?
@@ -67,6 +70,9 @@ try{
         $expiresAt=$s->fetchColumn();
         if($expiresAt!==false&&$expiresAt!==null&&strtotime((string)$expiresAt)<=time()){
             $pdo->prepare("UPDATE stage_reservations SET statut='EXPIREE' WHERE id=?")->execute([$reservationId]);
+            stageNotifyStudentReservation($pdo,$reservationId,'stage.reservation.expired',[
+                'reservation_status'=>'EXPIREE','workflow_status'=>'RESERVATION_EXPIREE'
+            ]);
             $pdo->commit();
             jsonResponse(false,'La réservation temporaire a expiré. La candidature doit être soumise à nouveau.',[],409);
         }
@@ -82,6 +88,11 @@ try{
             ->execute([$reservationId]);
         $pdo->prepare("UPDATE stage_invoices SET statut='ANNULEE' WHERE reservation_id=? AND statut IN('EMISE','PARTIELLEMENT_PAYEE','EXPIREE')")
             ->execute([$reservationId]);
+        $pdo->prepare("UPDATE financial_obligations SET status='CANCELLED' WHERE obligation_type='STAGE_RESERVATION' AND subject_type='STAGE_RESERVATION' AND subject_key=? AND status IN('PENDING','PARTIALLY_PAID')")
+            ->execute([(string)$reservationId]);
+        stageNotifyStudentReservation($pdo,$reservationId,'stage.reservation.rejected',[
+            'reason'=>$motif,'reservation_status'=>'ANNULEE','workflow_status'=>'CANDIDATURE_REFUSEE'
+        ]);
         $pdo->commit();
         jsonResponse(true,'Candidature refusée. La place a été libérée.');
     }
@@ -125,6 +136,9 @@ try{
         if($invoice&&$invoice['statut']==='PAYEE'){
             $pdo->prepare("UPDATE stage_reservations SET statut='CONFIRMEE',expires_at=NULL,confirmed_at=COALESCE(confirmed_at,NOW()),cancelled_at=NULL WHERE id=?")
                 ->execute([$reservationId]);
+            stageNotifyStudentReservation($pdo,$reservationId,'stage.reservation.approved',[
+                'reservation_status'=>'CONFIRMEE','workflow_status'=>'PLACEMENT_UNIVERSITAIRE_EN_ATTENTE'
+            ]);
             $pdo->commit();
             jsonResponse(true,'Candidature acceptée. Paiement déjà validé : la réservation est prête pour le placement universitaire.');
         }
@@ -151,6 +165,23 @@ try{
         $pdo->prepare("UPDATE stage_reservations SET statut='EN_ATTENTE_PAIEMENT',expires_at=NULL,confirmed_at=NULL,cancelled_at=NULL WHERE id=?")
             ->execute([$reservationId]);
 
+        ensureFinancialObligation($pdo,[
+            'user_id'=>(int)$a['user_id'],
+            'organization_id'=>(int)$eid,
+            'obligation_type'=>'STAGE_RESERVATION',
+            'subject_type'=>'STAGE_RESERVATION',
+            'subject_key'=>(string)$reservationId,
+            'label'=>'Frais de reservation de stage',
+            'amount'=>$montant,
+            'currency'=>$devise,
+            'notify'=>false,
+            'metadata'=>['reservation_id'=>$reservationId,'application_id'=>$id,'student_id'=>(int)$a['student_id']]
+        ]);
+
+        stageNotifyStudentReservation($pdo,$reservationId,'stage.reservation.payment_required',[
+            'amount'=>$montant,'currency'=>$devise,'reservation_status'=>'EN_ATTENTE_PAIEMENT',
+            'workflow_status'=>'EN_ATTENTE_PAIEMENT'
+        ]);
         $pdo->commit();
         jsonResponse(true,"Candidature acceptée. Paiement de ".number_format($montant,2,',',' ')." {$devise} attendu avant le placement universitaire.");
     }
@@ -160,6 +191,9 @@ try{
         ->execute([$reservationId]);
     $pdo->prepare("UPDATE stage_invoices SET statut='ANNULEE' WHERE reservation_id=? AND statut<>'PAYEE'")
         ->execute([$reservationId]);
+    stageNotifyStudentReservation($pdo,$reservationId,'stage.reservation.approved',[
+        'reservation_status'=>'CONFIRMEE','workflow_status'=>'PLACEMENT_UNIVERSITAIRE_EN_ATTENTE'
+    ]);
     $pdo->commit();
     jsonResponse(true,"Candidature acceptée. La réservation est confirmée et prête pour le placement universitaire.");
 }catch(Throwable $e){

@@ -1,6 +1,7 @@
 <?php
 /** STAGIA-RDC - C2 : helpers réservation D4. */
 require_once __DIR__.'/stage-campaign.php';
+require_once __DIR__.'/stage-student-notifications.php';
 
 function d4UuidV4():string{
     $d=random_bytes(16);
@@ -18,6 +19,12 @@ function d4StudentProfile(PDO $pdo,int $userId):array{
 }
 
 function d4ExpireReservations(PDO $pdo,int $participationId):int{
+    $find=$pdo->prepare("SELECT id FROM stage_reservations
+        WHERE participation_id=? AND statut='RESERVEE_TEMPORAIREMENT'
+          AND expires_at IS NOT NULL AND expires_at<=NOW()");
+    $find->execute([$participationId]);
+    $reservationIds=array_map('intval',$find->fetchAll(PDO::FETCH_COLUMN));
+    if(!$reservationIds)return 0;
     $s=$pdo->prepare("
         UPDATE stage_reservations
         SET statut='EXPIREE'
@@ -27,7 +34,13 @@ function d4ExpireReservations(PDO $pdo,int $participationId):int{
           AND expires_at<=NOW()
     ");
     $s->execute([$participationId]);
-    return $s->rowCount();
+    $expired=$s->rowCount();
+    foreach($reservationIds as $reservationId){
+        stageNotifyStudentReservation($pdo,$reservationId,'stage.reservation.expired',[
+            'reservation_status'=>'EXPIREE','workflow_status'=>'RESERVATION_EXPIREE'
+        ]);
+    }
+    return $expired;
 }
 
 function d4ActiveReservationCount(PDO $pdo,int $participationId):int{

@@ -28,34 +28,7 @@ function findStudentReservationForUpdate(PDO $pdo,int $studentId,string $uuid):a
     return $row;
 }
 
-/** Confirmation mobile idempotente : l'étudiant ne court-circuite jamais la décision. */
-function confirmStudentReservation(PDO $pdo,int $studentId,string $uuid):array{
-    $pdo->beginTransaction();
-    try{
-        $row=findStudentReservationForUpdate($pdo,$studentId,$uuid);
-        if($row['statut']==='RESERVEE_TEMPORAIREMENT'&&!empty($row['expires_at'])&&strtotime((string)$row['expires_at'])<=time()){
-            $pdo->prepare("UPDATE stage_reservations SET statut='EXPIREE' WHERE id=? AND statut='RESERVEE_TEMPORAIREMENT'")
-                ->execute([(int)$row['id']]);
-            $row['statut']='EXPIREE';
-        }
-        $pdo->commit();
-
-        if($row['statut']==='CONFIRMEE')return [
-            'confirmed'=>true,'idempotent'=>true,'reservation_uuid'=>$uuid,
-            'reservation_status'=>'CONFIRMEE','next_step'=>$row['placement_status']==='CONFIRME'?'HOSPITAL_ADMISSION':'UNIVERSITY_PLACEMENT'
-        ];
-        if($row['statut']==='EN_ATTENTE_PAIEMENT')throw new DomainException('Le paiement doit être validé avant la confirmation.');
-        if($row['statut']==='RESERVEE_TEMPORAIREMENT')throw new DomainException("La décision de l'université est encore attendue.");
-        if($row['statut']==='EXPIREE')throw new DomainException('Cette réservation a expiré.');
-        if($row['statut']==='ANNULEE')throw new DomainException('Cette réservation est annulée.');
-        throw new DomainException('Cette réservation ne peut pas être confirmée par l’étudiant.');
-    }catch(Throwable $e){
-        if($pdo->inTransaction())$pdo->rollBack();
-        throw $e;
-    }
-}
-
-/** Annule avant placement; un paiement validé impose un traitement de remboursement. */
+/** Annule uniquement le choix temporaire, avant toute décision universitaire. */
 function cancelStudentReservation(PDO $pdo,int $studentId,int $actorUserId,string $uuid):array{
     $pdo->beginTransaction();
     try{
@@ -64,24 +37,27 @@ function cancelStudentReservation(PDO $pdo,int $studentId,int $actorUserId,strin
             $pdo->commit();
             return ['cancelled'=>true,'idempotent'=>true,'reservation_uuid'=>$uuid,'reservation_status'=>'ANNULEE'];
         }
-        if($row['placement_id']||$row['admission_id'])throw new DomainException('Une réservation déjà placée ou admise ne peut plus être annulée depuis le mobile.');
 
-        $stmt=$pdo->prepare("
-            SELECT COUNT(*)
-            FROM stage_payments pay
-            JOIN stage_invoices i ON i.id=pay.invoice_id
-            WHERE i.reservation_id=? AND pay.statut='VALIDE'
-        ");
-        $stmt->execute([(int)$row['id']]);
-        if((int)$stmt->fetchColumn()>0)throw new DomainException('Un paiement validé existe. Une demande de remboursement est nécessaire avant annulation.');
+        if($row['statut']==='RESERVEE_TEMPORAIREMENT'&&!empty($row['expires_at'])&&strtotime((string)$row['expires_at'])<=time()){
+            $pdo->prepare("UPDATE stage_reservations SET statut='EXPIREE' WHERE id=? AND statut='RESERVEE_TEMPORAIREMENT'")
+                ->execute([(int)$row['id']]);
+            stageNotifyStudentReservation($pdo,(int)$row['id'],'stage.reservation.expired',[
+                'reservation_status'=>'EXPIREE','workflow_status'=>'RESERVATION_EXPIREE'
+            ]);
+            $pdo->commit();
+            throw new DomainException('Cette réservation temporaire a déjà expiré. Vous pouvez choisir un autre hôpital.');
+        }
 
-        $pdo->prepare("UPDATE stage_payments pay JOIN stage_invoices i ON i.id=pay.invoice_id SET pay.statut='ANNULE' WHERE i.reservation_id=? AND pay.statut IN('INITIE','EN_ATTENTE')")
-            ->execute([(int)$row['id']]);
-        $pdo->prepare("UPDATE stage_invoices SET statut='ANNULEE' WHERE reservation_id=? AND statut IN('EMISE','PARTIELLEMENT_PAYEE','EXPIREE')")
-            ->execute([(int)$row['id']]);
+        if($row['statut']!=='RESERVEE_TEMPORAIREMENT'||!in_array($row['application_status'],['SOUMISE','EN_ETUDE'],true)){
+            throw new DomainException("La réservation a déjà été traitée par l'université et ne peut plus être annulée par l'étudiant.");
+        }
+        if($row['placement_id']||$row['admission_id']){
+            throw new DomainException("La réservation a déjà été traitée et ne peut plus être annulée par l'étudiant.");
+        }
+
         $pdo->prepare("UPDATE stage_reservations SET statut='ANNULEE',expires_at=NULL,confirmed_at=NULL,cancelled_at=COALESCE(cancelled_at,NOW()) WHERE id=?")
             ->execute([(int)$row['id']]);
-        $pdo->prepare("UPDATE stage_applications SET statut='ANNULEE' WHERE id=? AND statut IN('SOUMISE','EN_ETUDE','ACCEPTEE')")
+        $pdo->prepare("UPDATE stage_applications SET statut='ANNULEE' WHERE id=? AND statut IN('SOUMISE','EN_ETUDE')")
             ->execute([(int)$row['application_id']]);
         d4ReservationHistory($pdo,(int)$row['id'],'STUDENT_CANCELLED',$row['statut'],'ANNULEE',[
             'source'=>'MOBILE','application_status_before'=>$row['application_status']

@@ -1,0 +1,456 @@
+{
+  "document": {
+    "title": "API étudiant — des campagnes aux rotations",
+    "version": "1.1.0",
+    "updated_at": "2026-10-08",
+    "base_path": "/api/v1",
+    "language": "fr",
+    "scope": "Parcours mobile depuis les campagnes ouvertes jusqu'aux affectations et rotations."
+  },
+  "authentication": {
+    "type": "Bearer",
+    "header": "Authorization: Bearer <access_token>",
+    "required_role": "STAGIAIRE",
+    "common_errors": {
+      "401": "Jeton absent, invalide, expiré ou révoqué.",
+      "403": "Compte sans rôle STAGIAIRE actif ou profil étudiant inactif."
+    }
+  },
+  "response_envelope": {
+    "success": {
+      "success": true,
+      "message": "",
+      "data": {}
+    },
+    "error": {
+      "success": false,
+      "message": "Description de l'erreur.",
+      "data": {}
+    }
+  },
+  "collection_rules": [
+    "Toute liste est un tableau JSON, y compris avec zéro ou un élément.",
+    "Les filtres multiples acceptent une liste séparée par des virgules ou la notation HTTP nom[]=A&nom[]=B lorsque la route le prévoit.",
+    "Les identifiants numériques restent des nombres et les UUID restent des chaînes.",
+    "Une unité de rotation est null lorsqu'aucune subdivision plus précise que le service n'est sélectionnée."
+  ],
+  "mobile_payment_flow": [
+    "GET /student/payments liste les obligations et l'historique sans déclencher de débit.",
+    "POST /student/payments/initiate envoie la demande C2B à MaishaPay et retourne normalement PENDING; ce résultat ne prouve pas encore le paiement.",
+    "L'étudiant confirme ou refuse la demande sur son téléphone avec son code PIN opérateur.",
+    "MaishaPay appelle le webhook serveur /maishapay-callback.php avec l'issue finale signée.",
+    "POST /student/payments/sync relit l'état final enregistré par le webhook; le mobile peut l'appeler périodiquement jusqu'à un état terminal.",
+    "Le mobile ne transmet jamais le code PIN à STAGIA."
+  ],
+  "status_catalogs": {
+    "campaign": ["OUVERTE"],
+    "application": ["BROUILLON", "SOUMISE", "EN_ETUDE", "ACCEPTEE", "REFUSEE", "ANNULEE"],
+    "reservation": ["RESERVEE_TEMPORAIREMENT", "EN_ATTENTE_PAIEMENT", "CONFIRMEE", "EXPIREE", "ANNULEE"],
+    "payment_public": ["NOT_REQUIRED", "NOT_STARTED", "PENDING", "FAILED", "PARTIAL", "PAID", "CANCELLED", "EXPIRED"],
+    "payment_transaction": ["INITIE", "EN_ATTENTE", "VALIDE", "ECHOUE", "ANNULE"],
+    "invoice": ["EMISE", "PARTIELLEMENT_PAYEE", "PAYEE", "ANNULEE", "EXPIREE"],
+    "financial_obligation": ["PENDING", "PARTIALLY_PAID", "PAID", "CANCELLED", "EXPIRED"],
+    "placement": ["CONFIRME", "ANNULE", "TERMINE"],
+    "admission": ["ATTENDU", "ADMIS", "EN_COURS", "TERMINE", "ANNULE"],
+    "assignment": ["PLANIFIEE", "ACTIVE", "TERMINEE", "ANNULEE"],
+    "rotation": ["PLANIFIEE", "ACTIVE", "TERMINEE", "ANNULEE"],
+    "completion": ["EN_PREPARATION", "PRET", "VALIDE", "REFUSE", "ANNULE"],
+    "workflow": [
+      "DECISION_UNIVERSITAIRE_EN_ATTENTE",
+      "EN_ATTENTE_PAIEMENT",
+      "PLACEMENT_UNIVERSITAIRE_EN_ATTENTE",
+      "PLACEMENT_ANNULE",
+      "ADMISSION_HOSPITALIERE_EN_ATTENTE",
+      "AFFECTATION_EN_ATTENTE",
+      "STAGE_PLANIFIE",
+      "STAGE_EN_COURS",
+      "STAGE_TERMINE",
+      "STAGE_VALIDE",
+      "CANDIDATURE_REFUSEE",
+      "ANNULEE",
+      "RESERVATION_EXPIREE"
+    ]
+  },
+  "routes": [
+    {
+      "id": "list_stage_options",
+      "method": "GET",
+      "path": "/student/stage-options",
+      "purpose": "Voir les campagnes ouvertes auxquelles l'étudiant est éligible et les hôpitaux acceptés.",
+      "query": [],
+      "success_status": 200,
+      "data": {
+        "campaigns": "CampaignOption[]",
+        "university_managed_campaigns": "CampaignOption[] — collection historique actuellement vide",
+        "stats": {
+          "campaigns": "integer",
+          "university_managed_campaigns": "integer",
+          "hospitals": "integer",
+          "available_hospitals": "integer",
+          "available_places": "integer"
+        }
+      },
+      "campaign_option": {
+        "campaign_id": "integer",
+        "academic_enrollment_id": "integer",
+        "code": "string",
+        "title": "string",
+        "start_date": "date",
+        "end_date": "date",
+        "stage_type": {"code": "string", "label": "string"},
+        "mode": {
+          "is_d4": "boolean",
+          "self_reservation_allowed": true,
+          "reservation_mode": "STUDENT_D4_CHOICE | STUDENT_CHOICE_UNIVERSITY_CONFIRMATION"
+        },
+        "promotion": {"code": "string", "name": "string", "level": "string|null"},
+        "program": "string|null",
+        "hospitals": "HospitalOption[]",
+        "hospitals_count": "integer",
+        "available_hospitals": "integer"
+      },
+      "hospital_option": {
+        "participation_id": "integer — requis pour réserver",
+        "hospital": {
+          "code": "string",
+          "name": "string",
+          "phone": "string|null",
+          "city": "string|null",
+          "province": "string|null",
+          "services": "HospitalService[]"
+        },
+        "capacity": "integer",
+        "used_places": "integer",
+        "available_places": "integer",
+        "available": "boolean",
+        "fees_required": "boolean",
+        "amount": "number|null",
+        "currency": "string|null",
+        "conditions": "string|null"
+      }
+    },
+    {
+      "id": "create_reservation",
+      "method": "POST",
+      "path": "/student/reservations",
+      "purpose": "Soumettre une candidature et créer une réservation temporaire.",
+      "body": {
+        "campaign_id": "integer, obligatoire",
+        "academic_enrollment_id": "integer, obligatoire",
+        "participation_id": "integer, obligatoire, obtenu dans stage-options",
+        "motivation": "string, facultatif"
+      },
+      "success_status": [200, 201],
+      "success_meaning": {
+        "201": "Nouvelle candidature et réservation créées.",
+        "200": "Réservation active déjà existante, réponse idempotente."
+      },
+      "data": {
+        "created": "boolean",
+        "application_id": "integer",
+        "application_uuid": "uuid",
+        "application_status": "SOUMISE",
+        "reservation_id": "integer",
+        "reservation_uuid": "uuid",
+        "reservation_status": "RESERVEE_TEMPORAIREMENT",
+        "expires_at": "datetime|null",
+        "workflow_status": "DECISION_UNIVERSITAIRE_EN_ATTENTE"
+      },
+      "errors": {"409": "Conflit métier ou réservation incompatible.", "422": "Paramètres invalides."}
+    },
+    {
+      "id": "list_applications",
+      "method": "GET",
+      "path": "/student/applications",
+      "purpose": "Consulter l'historique filtrable des candidatures.",
+      "query": [
+        {"name": "status", "multiple": true, "enum": "application"},
+        {"name": "reservation_status", "multiple": true, "enum": "reservation"},
+        {"name": "workflow_status", "multiple": true, "enum": "workflow"},
+        {"name": "campaign_id", "type": "integer"},
+        {"name": "hospital_id", "type": "integer"},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "success_status": 200,
+      "data": {
+        "items": "Application[]",
+        "total": "integer — total filtré",
+        "stats": "object — statistiques de tout l'historique",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "object — filtres appliqués, les statuts sont des collections",
+        "available_filters": "object — collections des statuts acceptés"
+      },
+      "application_item_highlights": [
+        "uuid", "application_status", "motivation", "refusal_reason",
+        "campaign_id", "campaign_code", "campaign_title", "hospital_id", "hospital_name",
+        "reservation_uuid", "reservation_status", "placement", "admission_uuid",
+        "assignment_uuid", "assignment_status", "completion_status",
+        "stage_type", "mode", "workflow_status", "workflow_message"
+      ]
+    },
+    {
+      "id": "list_reservations",
+      "method": "GET",
+      "path": "/student/reservations",
+      "purpose": "Consulter les réservations avec leur contexte complet et les actions permises.",
+      "query": [
+        {"name": "status", "multiple": true, "enum": "reservation"},
+        {"name": "application_status", "multiple": true, "enum": "application"},
+        {"name": "workflow_status", "multiple": true, "enum": "workflow"},
+        {"name": "payment_status", "multiple": true, "enum": "payment_public"},
+        {"name": "campaign_id", "type": "integer"},
+        {"name": "hospital_id", "type": "integer"},
+        {"name": "actionable", "enum": ["CANCEL"]},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "success_status": 200,
+      "data": {
+        "items": "Reservation[]",
+        "stats": "{total, temporary, waiting_payment, confirmed, expired, cancelled, can_cancel}",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "object",
+        "available_filters": "object"
+      },
+      "reservation_item_objects": [
+        "reservation", "application", "campaign", "stage_type", "mode", "academic_context",
+        "hospital", "payment", "placement", "admission", "assignment", "completion", "workflow", "actions"
+      ],
+      "cancel_rule": "actions.cancel.allowed vaut true uniquement pour une réservation temporaire non expirée, non décidée et sans placement ni admission."
+    },
+    {
+      "id": "cancel_reservation",
+      "method": "POST",
+      "path": "/student/reservations/{uuid}/cancel",
+      "purpose": "Annuler une réservation temporaire avant validation universitaire.",
+      "path_parameters": {"uuid": "UUID de la réservation"},
+      "body": {},
+      "success_status": 200,
+      "idempotent": true,
+      "data": {
+        "reservation_uuid": "uuid",
+        "reservation_status": "ANNULEE",
+        "application_status": "ANNULEE",
+        "idempotent": "boolean"
+      },
+      "errors": {"404": "Réservation introuvable pour cet étudiant.", "409": "La décision universitaire, le paiement, le placement ou l'admission empêche l'annulation."}
+    },
+    {
+      "id": "list_payments",
+      "method": "GET",
+      "path": "/student/payments",
+      "purpose": "Lister les obligations, factures et transactions de paiement liées aux stages.",
+      "query": [
+        {"name": "status", "aliases": ["statuses"], "multiple": true, "enum": "financial_obligation"},
+        {"name": "type", "type": "string", "example": "STAGE_RESERVATION"}
+      ],
+      "success_status": 200,
+      "data": {
+        "items": "PaymentContext[] — collection historique des paiements de stage",
+        "stats": "{total, payable, paid, pending, failed, free}",
+        "obligations": "FinancialObligation[] — collection canonique de toutes les obligations du payeur",
+        "obligation_stats": "{total, payable, pending, paid, failed, cancelled, expired}",
+        "filters": "{statuses, type}",
+        "available_filters": "{statuses}",
+        "channels": {
+          "MPESA": "M-Pesa",
+          "ORANGE_MONEY": "Orange Money",
+          "AIRTEL_MONEY": "Airtel Money",
+          "AFRIMONEY": "Afrimoney",
+          "BANQUE": "Banque",
+          "CARTE": "Carte bancaire"
+        }
+      },
+      "payment_context": {
+        "application_uuid": "uuid",
+        "reservation_uuid": "uuid|null",
+        "reservation_status": "reservation|null",
+        "campaign": "object",
+        "hospital": "object",
+        "payment_required": "boolean",
+        "payment_allowed": "boolean",
+        "payment_status": "payment_public",
+        "amount_required": "number",
+        "amount_validated": "number",
+        "amount_remaining": "number",
+        "currency": "string|null",
+        "invoice": "object|null",
+        "obligation": "object|null",
+        "payments": "PaymentTransaction[]"
+      },
+      "financial_obligation": {
+        "uuid": "uuid",
+        "reference": "string",
+        "type": "string",
+        "subject": "{type, key}",
+        "label": "string",
+        "amount": "number",
+        "currency": "string",
+        "status": "financial_obligation",
+        "amount_paid": "number",
+        "amount_remaining": "number",
+        "payment_status": "NOT_STARTED | INITIATED | PENDING | SUCCEEDED | FAILED | CANCELLED | REFUNDED",
+        "payable": "boolean",
+        "payment_pending": "boolean",
+        "due_at": "datetime|null",
+        "payments": "FinancialPayment[]"
+      },
+      "note": "BANQUE et CARTE sont exposés dans le catalogue mais l'initiation en ligne MaishaPay accepte actuellement uniquement les quatre canaux Mobile Money."
+    },
+    {
+      "id": "initiate_payment",
+      "method": "POST",
+      "path": "/student/payments/initiate",
+      "purpose": "Initier un paiement Mobile Money MaishaPay de manière idempotente.",
+      "headers": {"Idempotency-Key": "Alternative au champ body idempotency_key"},
+      "body": {
+        "obligation_uuid": "uuid, cible canonique recommandée",
+        "invoice_id": "integer, au choix",
+        "invoice_uuid": "uuid, au choix",
+        "reservation_uuid": "uuid, au choix",
+        "channel": "MPESA | ORANGE_MONEY | AIRTEL_MONEY | AFRIMONEY",
+        "phone_number": "string, obligatoire",
+        "idempotency_key": "string de 1 à 100 caractères, obligatoire si absent de l'en-tête"
+      },
+      "server_derived_fields": {
+        "amount": "Calculé depuis l'obligation : montant total moins les paiements déjà validés. Le client ne peut pas le modifier.",
+        "currency": "Lue depuis l'obligation financière, généralement USD ou CDF. Le client ne peut pas la modifier.",
+        "callbackUrl": "Lue depuis MAISHAPAY_CALLBACK_URL côté serveur. Elle n'est jamais fournie par le client."
+      },
+      "success_status": [200, 201],
+      "data": {
+        "payment": "{created, idempotent, uuid, reference, transaction_reference, amount, currency, channel, operator, status, phone_number, initiated_at}",
+        "obligation": "{uuid, reference, status, amount, currency}",
+        "reservation_uuid": "uuid"
+      },
+      "errors": {"404": "Facture introuvable.", "409": "État métier non payable.", "422": "Canal, téléphone, cible ou clé d'idempotence invalides."}
+    },
+    {
+      "id": "sync_payment",
+      "method": "POST",
+      "path": "/student/payments/sync",
+      "purpose": "Recalculer l'état de paiement et confirmer la réservation si le montant requis est validé.",
+      "body": {"reservation_uuid": "uuid, obligatoire"},
+      "body_alternatives": {
+        "obligation_uuid": "uuid, cible canonique recommandée",
+        "reservation_uuid": "uuid, compatibilité avec les réservations de stage"
+      },
+      "success_status": 200,
+      "data": {
+        "reservation_uuid": "uuid",
+        "reservation_status": "reservation",
+        "payment_status": "NOT_REQUIRED | NOT_STARTED | PENDING | FAILED | PARTIAL | PAID | NOT_CONFIRMED",
+        "invoice_status": "invoice|null",
+        "amount_required": "number|null",
+        "amount_validated": "number|null",
+        "amount_remaining": "number|null",
+        "currency": "string|null",
+        "placement_pending": "boolean|null"
+      },
+      "side_effect": "Ne crée aucune transaction et ne déclare jamais seul un paiement réussi. Il relit l'état écrit par le webhook, répare les projections métier et peut passer une réservation à CONFIRMEE ou EXPIREE."
+    },
+    {
+      "id": "list_admissions",
+      "method": "GET",
+      "path": "/student/admissions",
+      "purpose": "Suivre la chaîne réservation → placement → admission → affectation.",
+      "query": [{"name": "reservation_uuid", "type": "uuid", "optional": true}],
+      "success_status": 200,
+      "data": {
+        "items": "AdmissionTracking[]",
+        "stats": "{total, waiting_decision, waiting_payment, waiting_placement, waiting_admission, admitted, assigned, completed, refused, expired}"
+      },
+      "admission_tracking": {
+        "reservation": "object",
+        "application": "object",
+        "placement": "object avec exists",
+        "admission": "object avec exists",
+        "assignment": "object avec exists",
+        "campaign": "object",
+        "stage_type": "object",
+        "mode": "object",
+        "hospital": "object",
+        "completion": "object",
+        "workflow_status": "workflow",
+        "workflow_message": "string"
+      }
+    },
+    {
+      "id": "list_assignments_and_rotations",
+      "method": "GET",
+      "path": "/student/stages",
+      "purpose": "Consulter les affectations de l'étudiant et leur planification ordonnée.",
+      "query": [
+        {"name": "status", "aliases": ["statuses", "assignment_status"], "multiple": true, "enum": "assignment", "default": ["PLANIFIEE", "ACTIVE", "TERMINEE"]},
+        {"name": "rotation_status", "aliases": ["rotation_statuses"], "multiple": true, "enum": "rotation"},
+        {"name": "campaign_id", "aliases": ["campaign_ids"], "multiple": true, "type": "integer"},
+        {"name": "hospital_id", "aliases": ["hospital_ids"], "multiple": true, "type": "integer"},
+        {"name": "date_from", "type": "date YYYY-MM-DD", "meaning": "La période d'affectation se termine à cette date ou après."},
+        {"name": "date_to", "type": "date YYYY-MM-DD", "meaning": "La période d'affectation commence à cette date ou avant."},
+        {"name": "include", "multiple": true, "enum": ["rotations", "supervisors", "execution_access", "summary"], "default": ["rotations", "supervisors", "execution_access", "summary"]}
+      ],
+      "success_status": 200,
+      "data": {
+        "student": "{id, stagia_code}",
+        "items": "Assignment[]",
+        "filters": {
+          "statuses": "assignment[]",
+          "rotation_statuses": "rotation[]",
+          "campaign_ids": "integer[]",
+          "hospital_ids": "integer[]",
+          "date_from": "date|null",
+          "date_to": "date|null",
+          "includes": "string[]"
+        },
+        "summary": "{total, by_status, by_workflow_status}|null"
+      },
+      "assignment": {
+        "assignment_id": "integer",
+        "assignment_uuid": "uuid",
+        "assignment_status": "assignment",
+        "workflow_status": "PLANIFIE | EN_COURS | TERMINE | VALIDE",
+        "department": "{id, code, name, type, active}|null",
+        "department_integrity": "{valid, source}",
+        "hospital": "{id, code, name, phone, email, location}",
+        "campaign": "{id, uuid, code, title, stage_type}",
+        "period": "{start_date, end_date}",
+        "planning": "{current_rotation, next_rotation, rotations, total}",
+        "rotations": "Rotation[] — alias de planning.rotations",
+        "execution_access": "object|null"
+      },
+      "rotation": {
+        "id": "integer",
+        "uuid": "uuid",
+        "position": "integer à partir de 1",
+        "sequence": "integer",
+        "status": "rotation",
+        "period": "{start_date, end_date}",
+        "service": "{id, code, name, type}",
+        "unit": "{id, code, name, type}|null",
+        "supervisor": "{user_id, name, function}|null",
+        "objectives": "string|null",
+        "observation": "string|null",
+        "integrity": "{valid, service_target_valid, belongs_to_assignment_department}"
+      },
+      "ordering": ["rotation.sequence ASC", "rotation.period.start_date ASC", "rotation.id ASC"],
+      "integrity_rules": [
+        "Le département vient de stage_admissions.coordination_unit_id.",
+        "La rotation cible un service du département ou une unité enfant de ce service.",
+        "Une anomalie historique reste visible avec integrity.valid=false."
+      ]
+    }
+  ],
+  "notification_events": [
+    {"event": "stage.reservation.approved", "subject": "Réservation de stage approuvée"},
+    {"event": "stage.reservation.payment_required", "subject": "Réservation approuvée — paiement requis"},
+    {"event": "stage.reservation.rejected", "subject": "Réservation de stage refusée"},
+    {"event": "stage.reservation.expired", "subject": "Réservation temporaire expirée"},
+    {"event": "stage.placement.confirmed", "subject": "Placement de stage confirmé"},
+    {"event": "stage.placement.cancelled", "subject": "Placement de stage annulé"},
+    {"event": "stage.assignment.created", "subject": "Nouvelle affectation de stage"},
+    {"event": "stage.assignment.updated", "subject": "Affectation de stage modifiée"},
+    {"event": "stage.rotation.created", "subject": "Nouvelle rotation de stage"},
+    {"event": "stage.rotation.updated", "subject": "Planification de rotation modifiée"}
+  ]
+}

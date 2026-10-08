@@ -2,12 +2,19 @@
 
 require_once __DIR__.'/../bootstrap.php';
 require_once __DIR__.'/../../../includes/stage-student-payment.php';
+require_once __DIR__.'/../../../includes/payment/payment-workflow.php';
 
 requireApiMethod('GET');
 $student=requireApiStudent($pdo);
 $studentId=(int)$student['student_id'];
 
 try{
+    ensurePayableFinancialObligationsForUser($pdo,(int)$student['user_id']);
+    $rawStatuses=$_GET['status']??$_GET['statuses']??[];
+    if(!is_array($rawStatuses))$rawStatuses=explode(',',(string)$rawStatuses);
+    $obligations=listUserFinancialObligations($pdo,(int)$student['user_id'],[
+        'statuses'=>$rawStatuses,'type'=>$_GET['type']??''
+    ]);
     $stmt=$pdo->prepare("
         SELECT a.uuid application_uuid,a.statut application_status,
                c.code campaign_code,c.titre campaign_title,
@@ -16,7 +23,9 @@ try{
                COALESCE(p.frais_requis,0) payment_required,p.montant_frais,p.devise participation_currency,
                i.id invoice_id,i.uuid invoice_uuid,i.reference invoice_reference,
                i.montant invoice_amount,i.devise invoice_currency,i.statut invoice_status,
-               i.date_emission,i.date_echeance,i.paid_at
+               i.date_emission,i.date_echeance,i.paid_at,
+               fo.uuid obligation_uuid,fo.reference obligation_reference,fo.status obligation_status,
+               fo.amount obligation_amount,fo.currency obligation_currency,fo.due_at obligation_due_at
         FROM stage_applications a
         JOIN student_academic_enrollments ae ON ae.id=a.academic_enrollment_id
         JOIN student_enrollments se ON se.id=ae.enrollment_id AND se.student_id=?
@@ -25,6 +34,8 @@ try{
         LEFT JOIN stage_reservations r ON r.application_id=a.id
         LEFT JOIN stage_campaign_participations p ON p.id=a.participation_id
         LEFT JOIN stage_invoices i ON i.reservation_id=r.id
+        LEFT JOIN financial_obligations fo ON fo.obligation_type='STAGE_RESERVATION'
+             AND fo.subject_type='STAGE_RESERVATION' AND fo.subject_key=CAST(r.id AS CHAR)
         WHERE a.statut='ACCEPTEE'
         ORDER BY COALESCE(i.date_emission,a.responded_at,a.created_at) DESC,a.id DESC
     ");
@@ -65,6 +76,12 @@ try{
                 'uuid'=>$row['invoice_uuid'],'reference'=>$row['invoice_reference'],'status'=>$row['invoice_status'],
                 'issued_at'=>$row['date_emission'],'due_at'=>$row['date_echeance'],'paid_at'=>$row['paid_at']
             ]:null,
+            'obligation'=>$row['obligation_uuid']?[
+                'uuid'=>$row['obligation_uuid'],'reference'=>$row['obligation_reference'],
+                'status'=>$row['obligation_status'],'amount'=>(float)$row['obligation_amount'],
+                'currency'=>$row['obligation_currency'],'due_at'=>$row['obligation_due_at'],
+                'blocks_action'=>$row['obligation_status']!=='PAID'
+            ]:null,
             'payments'=>$payments
         ];
         $stats['total']++;
@@ -74,7 +91,15 @@ try{
         elseif($paymentStatus==='FAILED')$stats['failed']++;
         if($allowed)$stats['payable']++;
     }
-    apiResponse(true,'',['items'=>$items,'stats'=>$stats,'channels'=>studentPaymentChannels()]);
+    apiResponse(true,'',[
+        /* Collection historique des paiements de stage. */
+        'items'=>$items,'stats'=>$stats,
+        /* Collection canonique de toutes les obligations financières du payeur. */
+        'obligations'=>$obligations['items'],'obligation_stats'=>$obligations['stats'],
+        'filters'=>$obligations['filters'],
+        'available_filters'=>['statuses'=>['PENDING','PARTIALLY_PAID','PAID','CANCELLED','EXPIRED']],
+        'channels'=>studentPaymentChannels()
+    ]);
 }catch(Throwable $e){
     error_log('[API STUDENT PAYMENTS] '.$e->getMessage());
     apiResponse(false,'Une erreur interne empêche le chargement des paiements.',[],500);

@@ -2,6 +2,7 @@
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/auth.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-student-notifications.php';
 
 requirePermission($pdo,'assignment.hosting.manage');
 verifyAjaxCsrf();
@@ -45,6 +46,8 @@ try{
         FROM host_units
         WHERE host_etablissement_id=?
           AND actif=1
+          AND UPPER(type)='SERVICE'
+          AND parent_id IS NOT NULL
           AND capacite IS NOT NULL
           AND capacite>0
         ORDER BY id
@@ -96,6 +99,7 @@ try{
         SELECT
             ad.id admission_id,
             ad.statut admission_status,
+            ad.coordination_unit_id,
             sr.statut reservation_status,
             app.statut application_status,
             pl.statut placement_status,
@@ -130,6 +134,7 @@ try{
     $assigned=0;
     $failed=[];
     $distribution=[];
+    $assignmentNotifications=[];
 
     $existingStmt=$pdo->prepare("
         SELECT id
@@ -201,6 +206,11 @@ try{
             continue;
         }
 
+        if(empty($a['coordination_unit_id'])){
+            $failed[]=['admission_id'=>$admissionId,'student'=>$label,'reason'=>'Département d’affectation absent'];
+            continue;
+        }
+
         $existingStmt->execute([$admissionId]);
         if($existingStmt->fetchColumn()){
             $failed[]=['admission_id'=>$admissionId,'student'=>$label,'reason'=>'Déjà affecté'];
@@ -223,6 +233,8 @@ try{
         $best=null;
 
         foreach($unitMap as $uid=>$u){
+            if((int)($u['parent_id']??0)!==(int)$a['coordination_unit_id'])continue;
+
             $occupied=0;
 
             foreach($intervals[$uid] as $it){
@@ -275,6 +287,7 @@ try{
         ]);
 
         $assignmentId=(int)$pdo->lastInsertId();
+        $assignmentNotifications[]=$assignmentId;
 
         $updateAdmission->execute([$admissionId,$eid]);
 
@@ -321,6 +334,10 @@ try{
     }
 
     $pdo->commit();
+
+    foreach($assignmentNotifications as $assignmentId){
+        stageNotifyStudentAssignment($pdo,(int)$assignmentId,'stage.assignment.created');
+    }
 
     jsonResponse(
         true,

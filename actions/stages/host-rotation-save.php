@@ -9,6 +9,7 @@ if(session_status()!==PHP_SESSION_ACTIVE)
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';
 require_once __DIR__.'/../../includes/permissions.php';
+require_once __DIR__.'/../../includes/stage-student-notifications.php';
 
 /* La planification détaillée des rotations relève de l'administration d'accueil. */
 requireAjaxRole(['ADMIN_ACCUEIL']);
@@ -64,11 +65,12 @@ try{
 
     /* Affectation */
     $stmt=$pdo->prepare("
-        SELECT id,date_debut,date_fin,statut
-        FROM stage_assignments
-        WHERE id=?
-          AND host_etablissement_id=?
-          AND statut IN('ACTIVE','PLANIFIEE')
+        SELECT a.id,a.date_debut,a.date_fin,a.statut,ad.coordination_unit_id
+        FROM stage_assignments a
+        JOIN stage_admissions ad ON ad.id=a.admission_id
+        WHERE a.id=?
+          AND a.host_etablissement_id=?
+          AND a.statut IN('ACTIVE','PLANIFIEE')
         LIMIT 1
     ");
 
@@ -103,16 +105,26 @@ try{
 
     /* Service actif */
     $stmt=$pdo->prepare("
-        SELECT id,code,nom,type,capacite
-        FROM host_units
-        WHERE id=?
-          AND host_etablissement_id=?
-          AND actif=1
+        SELECT target.id,target.code,target.nom,target.type,target.capacite,
+               CASE
+                   WHEN UPPER(target.type)='SERVICE' THEN target.parent_id
+                   WHEN UPPER(target.type) IN('UNITE','UNITÉ') AND UPPER(parent.type)='SERVICE' THEN parent.parent_id
+                   ELSE NULL
+               END department_id
+        FROM host_units target
+        LEFT JOIN host_units parent ON parent.id=target.parent_id AND parent.host_etablissement_id=target.host_etablissement_id
+        WHERE target.id=?
+          AND target.host_etablissement_id=?
+          AND target.actif=1
+          AND UPPER(target.type) IN('SERVICE','UNITE','UNITÉ')
         LIMIT 1
     ");
 
     $stmt->execute([$unitId,$hostId]);
     $unit=$stmt->fetch(PDO::FETCH_ASSOC);
+
+    if($unit&&(int)($unit['department_id']??0)!==(int)$assignment['coordination_unit_id'])
+        jsonResponse(false,'Le service de rotation n’appartient pas au département d’affectation.',[],422);
 
     if(!$unit)
         jsonResponse(false,'Service / unité invalide.',[],422);
@@ -406,6 +418,10 @@ try{
 
     /* Validation atomique de la rotation et de son encadreur, puis réponse JSON. */
     $pdo->commit();
+
+    stageNotifyStudentRotation(
+        $pdo,$rotationId,$id?'stage.rotation.updated':'stage.rotation.created'
+    );
 
 
     jsonResponse(

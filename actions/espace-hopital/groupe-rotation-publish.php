@@ -2,6 +2,7 @@
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/auth.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-student-notifications.php';
 
 $role=$_SESSION['role_code']??'';
 
@@ -157,12 +158,20 @@ try{
     $s=$pdo->prepare("
         SELECT rp.id,rp.group_id,rp.sequence_no,rp.host_unit_id,rp.principal_supervisor_user_id,
                rp.date_debut,rp.date_fin,rp.objectifs,rp.observation,rp.statut,
-               hu.nom unit_name,hu.type unit_type
+               hu.nom unit_name,hu.type unit_type,
+               CASE
+                   WHEN UPPER(hu.type)='SERVICE' THEN hu.parent_id
+                   WHEN UPPER(hu.type) IN('UNITE','UNITÉ') AND UPPER(parent.type)='SERVICE' THEN parent.parent_id
+                   ELSE NULL
+               END target_department_id
         FROM stage_group_rotation_plans rp
         JOIN host_units hu
           ON hu.id=rp.host_unit_id
          AND hu.host_etablissement_id=?
          AND hu.actif=1
+        LEFT JOIN host_units parent
+          ON parent.id=hu.parent_id
+         AND parent.host_etablissement_id=hu.host_etablissement_id
         WHERE rp.group_id=?
           AND rp.statut IN('BROUILLON','PLANIFIEE')
         ORDER BY rp.sequence_no,rp.id
@@ -212,6 +221,7 @@ try{
             sa.id assignment_id,
             sa.date_debut assignment_start,
             sa.date_fin assignment_end,
+            ad.coordination_unit_id,
             sp.stagia_code,
             CONCAT_WS(' ',sp.prenom,sp.nom,sp.postnom) student_name
         FROM stage_group_students gs
@@ -252,6 +262,9 @@ try{
 
     foreach($students as $student){
         foreach($plans as $plan){
+            if((int)($plan['target_department_id']??0)!==(int)$student['coordination_unit_id'])
+                throw new RuntimeException("La rotation {$plan['sequence_no']} n’appartient pas au département d’affectation de {$student['student_name']}.");
+
             if(!empty($student['assignment_start'])&&$plan['date_debut']<$student['assignment_start'])
                 throw new RuntimeException("La rotation {$plan['sequence_no']} commence avant l’affectation de {$student['student_name']}.");
 
@@ -276,6 +289,7 @@ try{
 
     $actor=$uid?:null;
     $created=0;$updated=0;
+    $rotationNotifications=[];
 
     $findRotation=$pdo->prepare("
         SELECT id,statut,group_rotation_plan_id
@@ -345,6 +359,7 @@ try{
 
                 $rotationId=(int)$existing['id'];
                 $updated++;
+                $rotationNotifications[$rotationId]='stage.rotation.updated';
             }else{
                 $insertRotation->execute([
                     rotationUuid(),
@@ -363,6 +378,7 @@ try{
 
                 $rotationId=(int)$pdo->lastInsertId();
                 $created++;
+                $rotationNotifications[$rotationId]='stage.rotation.created';
             }
 
             $saveSupervisor->execute([
@@ -408,6 +424,10 @@ try{
     ]);
 
     $pdo->commit();
+
+    foreach($rotationNotifications as $rotationId=>$notificationEvent){
+        stageNotifyStudentRotation($pdo,(int)$rotationId,$notificationEvent);
+    }
 
     jsonResponse(true,"Plan publié pour ".count($students)." stagiaire(s) : {$created} rotation(s) créée(s), {$updated} mise(s) à jour.",[
         'group_id'=>$groupId,

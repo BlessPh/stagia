@@ -45,7 +45,9 @@ try{
                    COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0)) capacite_retenue,
                    p.frais_requis,p.montant_frais,p.devise,
                    h.code host_code,h.nom host_name,
-                   pl.id placement_id,pl.statut placement_status,pl.confirmed_at placement_confirmed_at,pl.university_confirmed_at
+                   pl.id placement_id,pl.uuid placement_uuid,pl.statut placement_status,
+                   pl.confirmed_at placement_confirmed_at,pl.university_confirmed_at,
+                   pl.cancelled_at placement_cancelled_at,pl.cancellation_reason placement_cancellation_reason
             FROM stage_reservations r
             JOIN stage_applications app ON app.id=r.application_id
             JOIN stage_campaigns c ON c.id=app.campaign_id AND c.owner_etablissement_id=? AND c.type_campagne='UNIVERSITAIRE'
@@ -56,7 +58,7 @@ try{
             LEFT JOIN academic_levels al ON al.id=pr.academic_level_id
             JOIN stage_campaign_participations p ON p.id=r.participation_id
             JOIN etablissements h ON h.id=p.host_etablissement_id
-            LEFT JOIN stage_placements pl ON pl.reservation_id=r.id AND pl.statut='CONFIRME'
+            LEFT JOIN stage_placements pl ON pl.reservation_id=r.id
             WHERE c.id=? AND r.statut IN('RESERVEE_TEMPORAIREMENT','EN_ATTENTE_PAIEMENT','CONFIRMEE')
             ORDER BY h.nom,sp.nom,sp.prenom
         ");
@@ -88,7 +90,7 @@ try{
         }unset($h);
 
         $byHospital=array_values($byHospital);
-        $items=array_values(array_filter($all,fn($x)=>($x['placement_status']??null)!=='CONFIRME'));
+        $items=$all;
     }
 
     jsonResponse(true,'',[

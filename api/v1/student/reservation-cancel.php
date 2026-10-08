@@ -11,7 +11,13 @@ if($uuid==='')apiResponse(false,'La réservation est obligatoire.',[],422);
 
 try{
     $result=cancelStudentReservation($pdo,(int)$student['student_id'],(int)$student['user_id'],$uuid);
-    apiResponse(true,$result['idempotent']?'Réservation déjà annulée.':'Réservation annulée.',$result);
+    apiResponse(
+        true,
+        $result['idempotent']
+            ?'Réservation déjà annulée. Vous pouvez choisir un autre hôpital.'
+            :'Réservation temporaire annulée. Vous pouvez maintenant choisir un autre hôpital.',
+        $result
+    );
 }catch(OutOfBoundsException $e){
     apiResponse(false,$e->getMessage(),[],404);
 }catch(DomainException $e){

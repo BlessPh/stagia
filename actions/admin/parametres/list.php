@@ -9,6 +9,7 @@ try{
     $items=$pdo->query("
         SELECT id,setting_key,setting_value,setting_type,category,label,description,systeme,updated_at
         FROM system_settings
+        WHERE setting_key NOT LIKE 'maishapay.%'
         ORDER BY FIELD(category,'PLATEFORME','SECURITE','ADHESION','NOTIFICATIONS','MAINTENANCE'),category,id
     ")->fetchAll(PDO::FETCH_ASSOC);
 

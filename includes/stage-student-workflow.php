@@ -1,7 +1,24 @@
 <?php
 
+require_once __DIR__.'/stage-student-notifications.php';
+
 /** Expire uniquement les réservations temporaires du stagiaire concerné. */
 function expireStudentTemporaryReservations(PDO $pdo,int $studentId):int{
+    $find=$pdo->prepare("
+        SELECT r.id
+        FROM stage_reservations r
+        JOIN stage_applications a ON a.id=r.application_id
+        JOIN student_academic_enrollments ae ON ae.id=a.academic_enrollment_id
+        JOIN student_enrollments se ON se.id=ae.enrollment_id
+        WHERE se.student_id=?
+          AND r.statut='RESERVEE_TEMPORAIREMENT'
+          AND r.expires_at IS NOT NULL
+          AND r.expires_at<=NOW()
+    ");
+    $find->execute([$studentId]);
+    $reservationIds=array_map('intval',$find->fetchAll(PDO::FETCH_COLUMN));
+    if(!$reservationIds)return 0;
+
     $stmt=$pdo->prepare("
         UPDATE stage_reservations r
         JOIN stage_applications a ON a.id=r.application_id
@@ -14,7 +31,13 @@ function expireStudentTemporaryReservations(PDO $pdo,int $studentId):int{
           AND r.expires_at<=NOW()
     ");
     $stmt->execute([$studentId]);
-    return $stmt->rowCount();
+    $expired=$stmt->rowCount();
+    foreach($reservationIds as $reservationId){
+        stageNotifyStudentReservation($pdo,$reservationId,'stage.reservation.expired',[
+            'reservation_status'=>'EXPIREE','workflow_status'=>'RESERVATION_EXPIREE'
+        ]);
+    }
+    return $expired;
 }
 
 /** État mobile commun aux listes de candidatures, réservations et admissions. */
@@ -30,6 +53,7 @@ function studentStageWorkflowStatus(array $row):string{
     if($assignment==='TERMINEE')return 'STAGE_TERMINE';
     if($assignment==='ACTIVE')return 'STAGE_EN_COURS';
     if($assignment==='PLANIFIEE')return 'STAGE_PLANIFIE';
+    if($placement==='ANNULE')return 'PLACEMENT_ANNULE';
     if($admission==='EN_COURS')return 'STAGE_EN_COURS';
     if($admission==='ADMIS')return 'AFFECTATION_EN_ATTENTE';
     if($admission==='ATTENDU')return 'ADMISSION_HOSPITALIERE_EN_ATTENTE';
@@ -49,6 +73,7 @@ function studentStageWorkflowMessage(string $status):string{
         'DECISION_UNIVERSITAIRE_EN_ATTENTE'=>"Réservation envoyée, en attente de l'approbation de l'université.",
         'EN_ATTENTE_PAIEMENT'=>'Réservation approuvée, en attente du paiement.',
         'PLACEMENT_UNIVERSITAIRE_EN_ATTENTE'=>"Réservation approuvée, en attente de l'affectation par l'université.",
+        'PLACEMENT_ANNULE'=>"Placement annulé par l'université. Choisissez un autre hôpital et effectuez une nouvelle réservation.",
         'ADMISSION_HOSPITALIERE_EN_ATTENTE'=>"Affectation confirmée, en attente de l'admission par l'hôpital.",
         'AFFECTATION_EN_ATTENTE'=>"Admission enregistrée, en attente de l'affectation à un service.",
         'STAGE_PLANIFIE'=>'Stage planifié.',

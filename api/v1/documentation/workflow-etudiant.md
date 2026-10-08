@@ -35,7 +35,7 @@ Le workflow etudiant actuel couvre les etapes suivantes :
    - Un refus annule la reservation et libere la place.
    - Apres acceptation, une reservation gratuite est confirmee ; une reservation payante passe en attente de paiement.
    - Le Web permet d'initier un paiement avec canal et numero de telephone.
-   - L'API mobile sait preparer une facture et synchroniser l'etat du paiement, mais ne declenche pas encore de paiement operateur reel.
+   - Le Web et l'API mobile utilisent le meme service d'obligation financière et déclenchent la collecte MaishaPay.
 
 6. Placement, admission et affectation
    - L'universite confirme le placement uniquement apres acceptation et confirmation de la reservation.
@@ -97,14 +97,76 @@ Les migrations `000009_api_refresh_tokens`, `000010_password_reset_tokens` et `0
 |---|---|---|---|
 | GET | `/api/v1/student/stage-options` | Campagnes éligibles avec choix d'un hôpital par l'étudiant, coordonnées et services actifs de l'hôpital, sous réserve de confirmation universitaire. | Aucun paramètre obligatoire. |
 | POST | `/api/v1/student/reservations` | Crée ou retrouve une candidature étudiante et sa réservation temporaire, avant décision universitaire. | `campaign_id`, `academic_enrollment_id`, `participation_id`, `motivation` optionnel. |
-| GET | `/api/v1/student/applications` | Liste les candidatures et leur avancement canonique. | Aucun parametre obligatoire. |
+| GET | `/api/v1/student/applications` | Liste filtrable et paginée des candidatures et de leur avancement canonique. | `status`, `reservation_status`, `workflow_status`, `campaign_id`, `hospital_id`, `page`, `per_page`. |
 | GET | `/api/v1/student/reservations` | Liste les reservations, expiration et actions permises. | Aucun parametre obligatoire. |
-| POST | `/api/v1/student/reservations/{uuid}/confirm` | Consultation idempotente de la confirmation; ne remplace jamais la decision universitaire. | Aucun corps obligatoire. |
-| POST | `/api/v1/student/reservations/{uuid}/cancel` | Annule avant placement si aucun paiement valide ne necessite de remboursement. | Aucun corps obligatoire. |
+| POST | `/api/v1/student/reservations/{uuid}/cancel` | Annule une réservation encore temporaire, avant toute décision universitaire, afin de permettre le choix d'un autre hôpital. | Aucun corps obligatoire. |
 | GET | `/api/v1/student/admissions` | Suit placement, admission, affectation et statut de stage. | `reservation_uuid` optionnel. |
 
 Les réponses de candidatures, réservations et admissions contiennent `workflow_status` et `workflow_message`. Après approbation universitaire d'une réservation gratuite et avant placement, la valeur est `PLACEMENT_UNIVERSITAIRE_EN_ATTENTE` avec le message « Réservation approuvée, en attente de l'affectation par l'université. »
-| GET | `/api/v1/student/stages.php` | Liste les stages reels et statistiques. | Aucun parametre obligatoire. |
+
+Les transitions de réservation génèrent aussi une notification interne et, selon les préférences de l'étudiant, une livraison push, e-mail ou SMS :
+
+| Événement | Sujet |
+|---|---|
+| `stage.reservation.approved` | Réservation de stage approuvée |
+| `stage.reservation.payment_required` | Réservation approuvée — paiement requis |
+| `stage.reservation.rejected` | Réservation de stage refusée |
+| `stage.reservation.expired` | Réservation temporaire expirée |
+| `stage.placement.confirmed` | Placement de stage confirmé |
+
+Chaque notification contient les identifiants de la réservation et de la candidature, le contexte de la campagne et de l'hôpital, ainsi qu'une action permettant d'ouvrir le suivi des réservations.
+
+#### Filtres de `GET /api/v1/student/applications`
+
+Les filtres sont combinables et les statuts acceptent une liste séparée par des virgules ou la notation tableau HTTP.
+
+```text
+GET /api/v1/student/applications?status=SOUMISE
+GET /api/v1/student/applications?status=ACCEPTEE,REFUSEE
+GET /api/v1/student/applications?reservation_status=EN_ATTENTE_PAIEMENT
+GET /api/v1/student/applications?workflow_status=PLACEMENT_UNIVERSITAIRE_EN_ATTENTE
+GET /api/v1/student/applications?campaign_id=32&hospital_id=24&page=1&per_page=20
+```
+
+Valeurs de `status` : `BROUILLON`, `SOUMISE`, `EN_ETUDE`, `ACCEPTEE`, `REFUSEE`, `ANNULEE`. La réponse contient `stats`, `pagination`, `filters` et `available_filters`. `stats` porte sur tout l'historique de l'étudiant tandis que `pagination.total` et `total` portent sur le résultat filtré.
+
+#### Filtres de `GET /api/v1/student/reservations`
+
+Les filtres sont combinables. Les filtres à valeurs multiples acceptent une liste séparée par des virgules ou la notation tableau HTTP (`status[]=CONFIRMEE`).
+
+| Filtre | Valeurs / usage |
+|---|---|
+| `status` | `RESERVEE_TEMPORAIREMENT`, `EN_ATTENTE_PAIEMENT`, `CONFIRMEE`, `EXPIREE`, `ANNULEE` |
+| `application_status` | `SOUMISE`, `EN_ETUDE`, `ACCEPTEE`, `REFUSEE`, `ANNULEE` |
+| `workflow_status` | État fonctionnel retourné dans `workflow.status`, par exemple `PLACEMENT_UNIVERSITAIRE_EN_ATTENTE` |
+| `payment_status` | `NOT_REQUIRED`, `NOT_STARTED`, `PENDING`, `FAILED`, `PARTIAL`, `PAID`, `CANCELLED`, `EXPIRED` |
+| `campaign_id` | Identifiant numérique de campagne |
+| `hospital_id` | Identifiant numérique d'hôpital |
+| `actionable` | `CANCEL` pour ne retourner que les réservations temporaires annulables |
+| `page`, `per_page` | Pagination ; `per_page` est limité à 100 et vaut 20 par défaut |
+
+Exemples :
+
+```text
+GET /api/v1/student/reservations?status=CONFIRMEE
+GET /api/v1/student/reservations?status=RESERVEE_TEMPORAIREMENT,EN_ATTENTE_PAIEMENT
+GET /api/v1/student/reservations?payment_status=PENDING
+GET /api/v1/student/reservations?actionable=CANCEL
+GET /api/v1/student/reservations?workflow_status=PLACEMENT_UNIVERSITAIRE_EN_ATTENTE&page=1&per_page=20
+```
+
+Chaque élément conserve les champs historiques et fournit aussi les objets structurés `reservation`, `application`, `campaign`, `stage_type`, `academic_context`, `hospital`, `payment`, `placement`, `admission`, `assignment`, `completion`, `workflow` et `actions`. La réponse contient également `stats`, `pagination`, les filtres appliqués dans `filters` et leurs valeurs possibles dans `available_filters`.
+| GET | `/api/v1/student/stages` | Collection des affectations avec département, hôpital et planification ordonnée des rotations. | `status[]`, `rotation_status[]`, `campaign_id[]`, `hospital_id[]`, `date_from`, `date_to`, `include[]`. |
+
+Les filtres à valeurs multiples acceptent la notation tableau HTTP ou une liste séparée par des virgules. Sans filtre `status`, les affectations annulées sont masquées. Les rotations sont ordonnées par `sequence_no`, puis `date_debut`, puis identifiant. Une rotation expose toujours son `service` et une `unit` facultative. La réponse conserve les anciennes clés, et ajoute `department`, `department_integrity`, `period`, `planning`, `filters` et `summary`.
+
+```text
+GET /api/v1/student/stages?status=PLANIFIEE,ACTIVE
+GET /api/v1/student/stages?rotation_status[]=ACTIVE&rotation_status[]=PLANIFIEE
+GET /api/v1/student/stages?campaign_id[]=32&hospital_id[]=24&include[]=rotations&include[]=supervisors
+```
+
+La création ou la modification réelle d'une affectation génère respectivement `stage.assignment.created` ou `stage.assignment.updated`. La publication ou la modification d'une rotation génère `stage.rotation.created` ou `stage.rotation.updated`. Ces notifications contiennent les UUID nécessaires à la navigation mobile et une clé métier empêchant les doublons identiques.
 
 ### Paiements
 
@@ -145,7 +207,7 @@ Ces endpoints utilisent la session PHP, le role `STAGIAIRE` et souvent un token 
 | `views/espace-etudiant/notes.php` | Notes academiques. | `student-parcours-list.php`, `student-note-list.php`. |
 | `views/espace-etudiant/stages.php` | Choix de stage general. | `student-stage-options.php`, `actions/stages/student-stage-reserve.php`. |
 | `views/espace-etudiant/d4-choisir-hopital.php` | Choix hopital D4. | `actions/espace-etudiant/d4-options-list.php`, `d4-reserve.php`. |
-| `views/espace-etudiant/reservations.php` | Reservations. | `actions/stages/student-reservation-list.php`, `student-reservation-confirm.php`. |
+| `views/espace-etudiant/reservations.php` | Reservations. | `actions/stages/student-reservation-list.php`. |
 | `views/espace-etudiant/candidatures.php` | Candidatures. | `actions/etudiants/student-application-list.php`. |
 | `views/espace-etudiant/paiements.php` | Paiements web. | `student-payment-list.php`, `student-payment-initiate.php`. |
 | `views/espace-etudiant/mes-stages.php` | Stages affectes et rotations. | `student-my-stages.php`. |
@@ -167,7 +229,6 @@ Ces endpoints utilisent la session PHP, le role `STAGIAIRE` et souvent un token 
 | `actions/espace-etudiant/d4-options-list.php` | GET | Liste les options D4. |
 | `actions/espace-etudiant/d4-reserve.php` | POST | Reserve une place D4. |
 | `actions/stages/student-reservation-list.php` | GET | Liste les reservations web. |
-| `actions/stages/student-reservation-confirm.php` | POST | Confirme reservation ou passe en attente de paiement. |
 | `actions/etudiants/student-application-list.php` | GET | Liste les candidatures. |
 | `actions/etudiants/student-payment-list.php` | GET | Liste les factures payables et paiements. |
 | `actions/etudiants/student-payment-initiate.php` | POST | Initie un paiement Web avec canal et telephone. |
@@ -248,7 +309,7 @@ Ces endpoints utilisent la session PHP, le role `STAGIAIRE` et souvent un token 
 |---|---|---|
 | POST | `/api/v1/student/payments/initiate` | Implemente : initiation idempotente avec les canaux Web existants. |
 | GET | `/api/v1/student/payment-methods.php` | Retourner les canaux supportes : M-Pesa, Orange Money, Airtel Money, Afrimoney, banque, carte. |
-| POST | `/api/v1/payments/callback.php` | Callback prestataire de paiement, separe du namespace etudiant si appele par operateur externe. |
+| POST | `/maishapay-callback.php` | Callback MaishaPay public. Le serveur vérifie l’en-tête HMAC `X-MaishaPay-Signature`; aucun secret n’est exposé au client mobile. |
 
 ### Priorite 4 : nettoyage/coherence technique
 

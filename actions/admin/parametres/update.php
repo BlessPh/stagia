@@ -19,6 +19,9 @@ $allowed=[
     'security.max_login_attempts',
     'security.lockout_minutes',
     'adhesion.enabled',
+    'student_activation.payment_enabled',
+    'student_activation.amount',
+    'student_activation.currency',
     'notifications.email_enabled',
     'maintenance.enabled',
     'maintenance.message'
@@ -80,6 +83,11 @@ try{
         if($key==='platform.timezone'){
             try{new DateTimeZone($value);}catch(Throwable $e){throw new RuntimeException('Fuseau horaire invalide.');}
         }
+        if($key==='student_activation.amount'&&(!is_numeric($value)||(float)$value<0))
+            throw new RuntimeException('Les frais annuels doivent être un montant positif ou nul.');
+        if($key==='student_activation.currency'&&!in_array(strtoupper($value),['USD','CDF','FCFA','EUR'],true))
+            throw new RuntimeException('Devise de paiement invalide.');
+        if($key==='student_activation.currency')$value=strtoupper($value);
 
         $update->execute([$value,$_SESSION['user_id']??null,$key]);
     }

@@ -1,5 +1,8 @@
 <?php
 
+require_once __DIR__.'/stage-student-notifications.php';
+require_once __DIR__.'/payment/financial-obligation.php';
+
 function studentPaymentChannels():array{
     return [
         'MPESA'=>'M-Pesa',
@@ -63,9 +66,9 @@ function initiateStudentStagePayment(PDO $pdo,int $studentId,int $userId,array $
     $idempotencyKey=trim((string)($input['idempotency_key']??''));
     if(!$invoiceId&&$invoiceUuid===''&&$reservationUuid==='')throw new InvalidArgumentException('La facture ou la réservation est obligatoire.');
     $channels=studentPaymentChannels();
-    if(!isset($channels[$channel]))throw new InvalidArgumentException('Canal de paiement invalide.');
-    if(in_array($channel,studentPaymentMobileChannels(),true)&&$phone==='')throw new InvalidArgumentException('Le numéro de téléphone est obligatoire pour ce canal.');
-    if(strlen($idempotencyKey)>100)throw new InvalidArgumentException("La clé d'idempotence ne peut pas dépasser 100 caractères.");
+    if(!in_array($channel,studentPaymentMobileChannels(),true))throw new InvalidArgumentException('Seuls les canaux Mobile Money MaishaPay sont disponibles en ligne.');
+    if($phone==='')throw new InvalidArgumentException('Le numéro de téléphone est obligatoire.');
+    if($idempotencyKey===''||strlen($idempotencyKey)>100)throw new InvalidArgumentException("Une clé d'idempotence de 1 à 100 caractères est obligatoire.");
 
     $pdo->beginTransaction();
     try{
@@ -122,19 +125,37 @@ function initiateStudentStagePayment(PDO $pdo,int $studentId,int $userId,array $
         $remaining=max(0,round((float)$invoice['montant']-$paid,2));
         if($remaining<=0)throw new DomainException('Cette facture est déjà réglée. Synchronisez son état.');
 
-        $uuid=studentPaymentUuid();$reference=studentPaymentReference();
-        $fields=['uuid','invoice_id','reference','montant','devise','canal','operateur','statut','phone_number','initiated_at','metadata'];
-        $values=['?','?','?','?','?','?','?',"'EN_ATTENTE'",'?','NOW()','?'];
-        $params=[$uuid,(int)$invoice['id'],$reference,$remaining,$invoice['devise'],$channel,$channels[$channel],$phone?:null,json_encode([
-            'source'=>$source,'user_id'=>$userId,'invoice_reference'=>$invoice['reference']
-        ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)];
-        if($hasKey){array_splice($fields,2,0,['idempotency_key']);array_splice($values,2,0,['?']);array_splice($params,2,0,[$idempotencyKey!==''?$idempotencyKey:null]);}
-        $pdo->prepare('INSERT INTO stage_payments('.implode(',',$fields).') VALUES('.implode(',',$values).')')->execute($params);
-        $paymentId=(int)$pdo->lastInsertId();
-        $stmt=$pdo->prepare('SELECT * FROM stage_payments WHERE id=?');$stmt->execute([$paymentId]);
-        $payment=$stmt->fetch(PDO::FETCH_ASSOC);
+        $obligation=ensureFinancialObligation($pdo,[
+            'user_id'=>$userId,'obligation_type'=>'STAGE_RESERVATION','subject_type'=>'STAGE_RESERVATION',
+            'subject_key'=>(string)$invoice['reservation_id'],'label'=>'Frais de réservation de stage',
+            'amount'=>(float)$invoice['montant'],'currency'=>$invoice['devise'],
+            'metadata'=>['reservation_id'=>(int)$invoice['reservation_id'],'invoice_id'=>(int)$invoice['id'],'student_id'=>$studentId]
+        ]);
         $pdo->commit();
-        return ['payment'=>studentPaymentPublicRow($payment,true),'reservation_uuid'=>$invoice['reservation_uuid']];
+
+        $customerStmt=$pdo->prepare("SELECT TRIM(CONCAT_WS(' ',prenom,nom,postnom)) full_name,email FROM users WHERE id=? LIMIT 1");
+        $customerStmt->execute([$userId]);$customer=$customerStmt->fetch(PDO::FETCH_ASSOC)?:[];
+        $financial=initiateFinancialPayment($pdo,(int)$obligation['id'],$userId,[
+            'channel'=>$channel,'phone_number'=>$phone,'idempotency_key'=>$idempotencyKey
+        ],$customer);
+        if(!empty($financial['already_paid']))return ['created'=>false,'already_paid'=>true,'reservation_uuid'=>$invoice['reservation_uuid'],'reservation_status'=>'CONFIRMEE','invoice_status'=>'PAYEE'];
+        $fp=$financial['payment'];
+        $fields=['uuid','invoice_id','reference','montant','devise','canal','operateur','statut','phone_number','transaction_reference','initiated_at','metadata'];
+        $values=['?','?','?','?','?','?','?',"'EN_ATTENTE'",'?','?','NOW()','?'];
+        $params=[studentPaymentUuid(),(int)$invoice['id'],$fp['merchant_reference'],(float)$fp['amount'],$fp['currency'],$channel,$channels[$channel],$phone,$fp['provider_transaction_id']?:null,json_encode([
+            'source'=>$source,'user_id'=>$userId,'invoice_reference'=>$invoice['reference'],'financial_payment_id'=>(int)$fp['id'],'obligation_id'=>(int)$obligation['id']
+        ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)];
+        if($hasKey){array_splice($fields,2,0,['idempotency_key']);array_splice($values,2,0,['?']);array_splice($params,2,0,[$idempotencyKey]);}
+        try{$pdo->prepare('INSERT INTO stage_payments('.implode(',',$fields).') VALUES('.implode(',',$values).')')->execute($params);$paymentId=(int)$pdo->lastInsertId();}
+        catch(PDOException $e){
+            if(!$hasKey)throw $e;
+            $stmt=$pdo->prepare('SELECT id FROM stage_payments WHERE invoice_id=? AND idempotency_key=? LIMIT 1');$stmt->execute([(int)$invoice['id'],$idempotencyKey]);$paymentId=(int)$stmt->fetchColumn();
+            if(!$paymentId)throw $e;
+        }
+        $stmt=$pdo->prepare('SELECT * FROM stage_payments WHERE id=?');$stmt->execute([$paymentId]);$payment=$stmt->fetch(PDO::FETCH_ASSOC);
+        return ['payment'=>studentPaymentPublicRow($payment,(bool)$financial['created']),'obligation'=>[
+            'uuid'=>$obligation['uuid'],'reference'=>$obligation['reference'],'status'=>$obligation['status'],'amount'=>(float)$obligation['amount'],'currency'=>$obligation['currency']
+        ],'reservation_uuid'=>$invoice['reservation_uuid']];
     }catch(Throwable $e){
         if($pdo->inTransaction())$pdo->rollBack();
         if($e instanceof PDOException&&$idempotencyKey!==''&&studentPaymentHasColumn($pdo,'stage_payments','idempotency_key')){
@@ -197,6 +218,9 @@ function synchronizeStudentStagePayment(PDO $pdo,int $studentId,string $reservat
         if($row['invoice_status']!=='ANNULEE')$pdo->prepare('UPDATE stage_invoices SET statut=? WHERE id=?')->execute([$invoiceStatus,(int)$row['invoice_id']]);
         if($row['reservation_status']==='RESERVEE_TEMPORAIREMENT'&&!empty($row['expires_at'])&&strtotime((string)$row['expires_at'])<=time()){
             $pdo->prepare("UPDATE stage_reservations SET statut='EXPIREE' WHERE id=?")->execute([(int)$row['id']]);
+            stageNotifyStudentReservation($pdo,(int)$row['id'],'stage.reservation.expired',[
+                'reservation_status'=>'EXPIREE','workflow_status'=>'RESERVATION_EXPIREE'
+            ]);
             $pdo->commit();
             return ['reservation_uuid'=>$reservationUuid,'reservation_status'=>'EXPIREE','payment_status'=>'NOT_CONFIRMED'];
         }

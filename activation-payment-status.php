@@ -4,6 +4,7 @@ if(session_status()!==PHP_SESSION_ACTIVE)session_start();
 
 require_once __DIR__.'/config/config.php';
 require_once __DIR__.'/config/database.php';
+require_once __DIR__.'/includes/payment/activation-subscription.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -20,9 +21,7 @@ if($reference===''){
     exit;
 }
 
-$pdo->prepare("UPDATE student_activation_subscriptions SET statut='EXPIRE' WHERE user_id=? AND reference=? AND statut='EN_ATTENTE' AND created_at<DATE_SUB(NOW(),INTERVAL 2 MINUTE)")->execute([(int)$_SESSION['user_id'],$reference]);
-
-$stmt=$pdo->prepare('SELECT statut,expires_at FROM student_activation_subscriptions WHERE user_id=? AND reference=? LIMIT 1');
+$stmt=$pdo->prepare("SELECT p.status,fe.valid_until expires_at FROM financial_payments p JOIN financial_obligations o ON o.id=p.obligation_id LEFT JOIN financial_entitlements fe ON fe.source_obligation_id=o.id AND fe.entitlement_code='STUDENT_ACCESS' WHERE o.user_id=? AND p.merchant_reference=? LIMIT 1");
 $stmt->execute([(int)$_SESSION['user_id'],$reference]);
 $payment=$stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -33,6 +32,6 @@ if(!$payment){
 }
 
 echo json_encode([
-    'status'=>$payment['statut'],
+    'status'=>match($payment['status']){'SUCCEEDED'=>'VALIDE','FAILED'=>'ECHOUE','CANCELLED'=>'ANNULE',default=>'EN_ATTENTE'},
     'expires_at'=>$payment['expires_at']
 ]);

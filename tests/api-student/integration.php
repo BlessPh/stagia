@@ -118,6 +118,40 @@ foreach ($reservationsResponse['json']['data']['items'] ?? [] as $reservation) {
     );
 }
 
+$stagesResponse = $client->request(
+    'GET',
+    '/student/stages?status%5B%5D=PLANIFIEE&status%5B%5D=ACTIVE&include%5B%5D=rotations&include%5B%5D=supervisors&include%5B%5D=summary',
+    null,
+    $access
+);
+$stagesData = $stagesResponse['json']['data'] ?? [];
+$suite->ok($stagesResponse['status'] === 200, 'Les affectations filtrées sont accessibles');
+$suite->ok(is_array($stagesData['items'] ?? null), 'Les affectations sont retournées comme une collection');
+$suite->ok(
+    ($stagesData['filters']['statuses'] ?? null) === ['PLANIFIEE', 'ACTIVE'],
+    'Plusieurs statuts d’affectation sont acceptés et retournés comme une collection'
+);
+$suite->ok(is_array($stagesData['filters']['includes'] ?? null), 'Les inclusions sont retournées comme une collection');
+$suite->ok(is_array($stagesData['summary']['by_status'] ?? null), 'Le résumé est ventilé par statut');
+
+foreach ($stagesData['items'] ?? [] as $assignment) {
+    $suite->ok(array_key_exists('department', $assignment), 'Le département d’affectation est explicite');
+    $suite->ok(isset($assignment['department_integrity']['valid']), 'L’intégrité du département est exposée');
+    $suite->ok(is_array($assignment['planning']['rotations'] ?? null), 'La planification contient une collection de rotations');
+
+    $previous = null;
+    foreach ($assignment['planning']['rotations'] as $rotation) {
+        $suite->ok(isset($rotation['position'], $rotation['sequence']), 'La position et la séquence de rotation sont explicites');
+        $suite->ok(isset($rotation['service']['id']), 'Chaque rotation expose son service');
+        $suite->ok(array_key_exists('unit', $rotation), 'L’unité facultative est explicitement représentée');
+        $current = sprintf('%010d|%s|%010d', (int) $rotation['sequence'], $rotation['period']['start_date'], (int) $rotation['id']);
+        if ($previous !== null) {
+            $suite->ok(strcmp($previous, $current) <= 0, 'Les rotations respectent séquence, date puis identifiant');
+        }
+        $previous = $current;
+    }
+}
+
 $refresh = $client->request('POST', '/refresh-token', ['refresh_token' => $tokens['refresh_token']]);
 $suite->ok($refresh['status'] === 200 && !empty($refresh['json']['data']['access_token']), 'Rotation du refresh token');
 $newAccess = (string) $refresh['json']['data']['access_token'];

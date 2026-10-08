@@ -10,7 +10,6 @@ RewriteRule ^me/?$ me.php [L,QSA]
 RewriteRule ^student/stage-options/?$ student/stage-options.php [L,QSA]
 RewriteRule ^student/dashboard/?$ student/dashboard.php [L,QSA]
 RewriteRule ^student/applications/?$ student/applications.php [L,QSA]
-RewriteRule ^student/reservations/([A-Fa-f0-9-]+)/confirm/?$ student/reservation-confirm.php?uuid=$1 [L,QSA]
 RewriteRule ^student/reservations/([A-Fa-f0-9-]+)/cancel/?$ student/reservation-cancel.php?uuid=$1 [L,QSA]
 RewriteCond %{REQUEST_METHOD} ^POST$
 RewriteRule ^student/reservations/?$ student/reserve.php [L,QSA]

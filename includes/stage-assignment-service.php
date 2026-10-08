@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__.'/stage-payment.php';
-require_once __DIR__.'/communication-native.php';
+require_once __DIR__.'/stage-student-notifications.php';
 
 /** Génère un UUID v4 pour une nouvelle affectation de stage. */
 function stageAssignmentUuidV4():string{
@@ -226,14 +226,14 @@ function stageAssignmentSaveOne(PDO $pdo,int $hostId,int $actorId,array $data):a
                 FROM host_units
                 WHERE id=? AND host_etablissement_id=? AND actif=1
                 AND parent_id=?
-                AND UPPER(type) IN('SERVICE','UNITE','UNITÉ')
+                AND UPPER(type)='SERVICE'
                 LIMIT 1 FOR UPDATE
             ");
             $s->execute([$unitId,$hostId,$coordId]);
             $unit=$s->fetch(PDO::FETCH_ASSOC);
 
             if(!$unit)
-                throw new RuntimeException('Service invalide : sélectionnez un service actif rattaché à cette coordination/département.');
+                throw new RuntimeException('Service invalide : sélectionnez un service actif rattaché à ce département.');
 
         if($id){
             $s=$pdo->prepare("
@@ -315,24 +315,12 @@ function stageAssignmentSaveOne(PDO $pdo,int $hostId,int $actorId,array $data):a
             $s->execute([$admissionId,$hostId]);
         }
 
-        try{
-            $notificationType=$id?'stage.assignment.updated':'stage.assignment.created';
-            $notificationTitle=$id?'Votre affectation a ete modifiee':'Votre affectation de stage est confirmee';
-            communicationNotifier(
-                $pdo,(int)$admission['student_user_id'],$hostId,$notificationType,$notificationTitle,
-                'Service : '.$unit['nom'].' - du '.$dateDebut.' au '.$dateFin,
-                '/views/espace-etudiant/mes-stages.php',
-                ['assignment_uuid'=>$assignmentUuid,'action'=>[
-                    'type'=>'internship_assignment','target_id'=>$assignmentUuid,
-                    'label'=>'Voir mon affectation','title'=>$unit['nom'],
-                    'metadata'=>['status'=>$statut]
-                ]]
-            );
-        }catch(Throwable $notificationError){
-            error_log('[STAGE ASSIGNMENT NOTIFICATION] '.$notificationError->getMessage());
-        }
-
         $pdo->commit();
+
+        /* La notification ne part qu'après validation définitive de l'affectation. */
+        stageNotifyStudentAssignment(
+            $pdo,$assignmentId,$id?'stage.assignment.updated':'stage.assignment.created'
+        );
 
         return [
             'id'=>$assignmentId,

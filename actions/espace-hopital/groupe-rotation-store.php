@@ -45,6 +45,7 @@ function grs_chef_units(PDO $pdo,int $uid,int $eid,string $role):?array{
 }
 function grs_in_scope(?array $ids,int $id):bool{return !is_array($ids)||in_array($id,$ids,true);}
 function grs_add_days(string $date,int $days):string{$d=new DateTime($date);$d->modify(($days>=0?'+':'').$days.' day');return $d->format('Y-m-d');}
+function grs_unit_type(string $type):string{return strtoupper(strtr(trim($type),['É'=>'E','È'=>'E','Ê'=>'E','Ë'=>'E','é'=>'E','è'=>'E','ê'=>'E','ë'=>'E']));}
 
 try{
     header('Content-Type: application/json; charset=utf-8');
@@ -83,10 +84,17 @@ try{
     if(!$group)throw new Exception('Groupe introuvable.');
     if(($group['statut']??'')!=='BROUILLON')throw new Exception('Le groupe est déjà publié ou verrouillé.');
 
-    $s=$pdo->prepare("SELECT id,parent_id,nom,type FROM host_units WHERE id=? AND host_etablissement_id=? AND actif=1");
+    $s=$pdo->prepare("SELECT unit.id,unit.parent_id,unit.nom,unit.type,parent.type parent_type
+        FROM host_units unit
+        LEFT JOIN host_units parent ON parent.id=unit.parent_id AND parent.host_etablissement_id=unit.host_etablissement_id
+        WHERE unit.id=? AND unit.host_etablissement_id=? AND unit.actif=1");
     $s->execute([$unitId,$eid]);
     $unit=$s->fetch(PDO::FETCH_ASSOC);
     if(!$unit)throw new Exception('Service introuvable ou inactif.');
+    $unitType=grs_unit_type((string)$unit['type']);
+    $parentType=grs_unit_type((string)($unit['parent_type']??''));
+    if($unitType!=='SERVICE'&&!($unitType==='UNITE'&&$parentType==='SERVICE'))
+        throw new Exception('Une rotation doit cibler un service ou une unité rattachée à un service.');
 
     $scopeIds=[$unitId];
     if((int)($unit['parent_id']??0)>0)$scopeIds[]=(int)$unit['parent_id'];

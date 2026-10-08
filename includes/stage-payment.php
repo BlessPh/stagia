@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/payment/financial-obligation.php';
+
 /* =========================================================
    STAGIA - CONTRÔLE FACTURATION / PAIEMENT
 ========================================================= */
@@ -48,7 +50,7 @@ function ensureStageInvoice(
             sa.participation_id,
             sa.host_etablissement_id,
 
-            se.student_id,
+            se.student_id,sp.user_id,
 
             p.frais_requis,
             p.montant_frais,
@@ -64,6 +66,9 @@ function ensureStageInvoice(
 
         INNER JOIN student_enrollments se
             ON se.id=sae.enrollment_id
+
+        INNER JOIN student_profiles sp
+            ON sp.id=se.student_id
 
         LEFT JOIN stage_campaign_participations p
             ON p.id=sa.participation_id
@@ -129,7 +134,6 @@ function ensureStageInvoice(
     $invoice=$stmt->fetch(
         PDO::FETCH_ASSOC
     );
-
 
     /* Création automatique */
     if(!$invoice){
@@ -215,6 +219,17 @@ function ensureStageInvoice(
             PDO::FETCH_ASSOC
         );
     }
+
+    ensureFinancialObligation($pdo,[
+        'user_id'=>(int)$stage['user_id'],
+        'obligation_type'=>'STAGE_RESERVATION',
+        'subject_type'=>'STAGE_RESERVATION',
+        'subject_key'=>(string)$reservationId,
+        'label'=>'Frais de réservation de stage',
+        'amount'=>(float)$invoice['montant'],
+        'currency'=>$invoice['devise'],
+        'metadata'=>['reservation_id'=>$reservationId,'invoice_id'=>(int)$invoice['id'],'student_id'=>(int)$stage['student_id']]
+    ]);
 
 
     /* =====================================================

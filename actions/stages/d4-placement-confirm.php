@@ -7,6 +7,8 @@ require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/auth.php';
 require_once __DIR__.'/../../includes/ajax.php';
 require_once __DIR__.'/../../includes/stage-letter-service.php';
+require_once __DIR__.'/../../includes/stage-student-notifications.php';
+require_once __DIR__.'/../../includes/payment/financial-obligation.php';
 
 requirePermission($pdo,'placement.university.manage');
 verifyAjaxCsrf();
@@ -32,10 +34,10 @@ try{
                app.statut application_status,app.campaign_id,
                app.academic_enrollment_id,c.date_debut campaign_start,c.date_fin campaign_end,
                se.student_id,p.id participation_id,p.host_etablissement_id,p.date_debut participation_start,
-               p.date_fin participation_end,
+               p.date_fin participation_end,p.frais_requis,
                COALESCE(NULLIF(p.capacite_acceptee,0),NULLIF(p.capacite_allouee,0)) capacite_retenue,
                h.nom host_name,
-               pl.id placement_id,pl.statut placement_status
+               pl.id placement_id,pl.uuid placement_uuid,pl.statut placement_status
         FROM stage_reservations r
         JOIN stage_applications app ON app.id=r.application_id
         JOIN stage_campaigns c ON c.id=app.campaign_id AND c.owner_etablissement_id=? AND c.type_campagne='UNIVERSITAIRE'
@@ -58,6 +60,8 @@ try{
         if($x['reservation_status']==='EN_ATTENTE_PAIEMENT')throw new RuntimeException("Le placement attend encore la validation du paiement.");
         throw new RuntimeException("La réservation n'est pas prête pour le placement.");
     }
+    if((int)$x['frais_requis']===1)
+        requireFinancialObligationPaid($pdo,'STAGE_RESERVATION','STAGE_RESERVATION',(string)$rid);
 
     /* La confirmation est idempotente si le placement est déjà confirmé. */
     if($x['placement_status']==='CONFIRME'){
@@ -70,6 +74,7 @@ try{
     /* Un placement existant est réactivé ; sinon une nouvelle ligne est créée. */
     if($x['placement_id']){
         $pid=(int)$x['placement_id'];$prev=$x['placement_status'];
+        $placementUuid=(string)$x['placement_uuid'];
         $pdo->prepare("
             UPDATE stage_placements SET campaign_id=?,academic_enrollment_id=?,student_id=?,participation_id=?,
             host_etablissement_id=?,statut='CONFIRME',date_debut=?,date_fin=?,confirmed_at=NOW(),
@@ -78,11 +83,12 @@ try{
         ")->execute([(int)$x['campaign_id'],(int)$x['academic_enrollment_id'],(int)$x['student_id'],(int)$x['participation_id'],(int)$x['host_etablissement_id'],$start,$end,$actor,$pid]);
     }else{
         $prev=null;
+        $placementUuid=placementUuidV4();
         $pdo->prepare("
             INSERT INTO stage_placements(uuid,reservation_id,campaign_id,academic_enrollment_id,student_id,
             participation_id,host_etablissement_id,statut,date_debut,date_fin,confirmed_at,university_confirmed_by_user_id,university_confirmed_at)
             VALUES(?,?,?,?,?,?,?,'CONFIRME',?,?,NOW(),?,NOW())
-        ")->execute([placementUuidV4(),$rid,(int)$x['campaign_id'],(int)$x['academic_enrollment_id'],(int)$x['student_id'],(int)$x['participation_id'],(int)$x['host_etablissement_id'],$start,$end,$actor]);
+        ")->execute([$placementUuid,$rid,(int)$x['campaign_id'],(int)$x['academic_enrollment_id'],(int)$x['student_id'],(int)$x['participation_id'],(int)$x['host_etablissement_id'],$start,$end,$actor]);
         $pid=(int)$pdo->lastInsertId();
     }
 
@@ -112,9 +118,15 @@ try{
         VALUES(?,'UNIVERSITY_CONFIRMED',?,'CONFIRME',?,?,NOW())
     ")->execute([$pid,$prev,json_encode(['reservation_id'=>$rid,'host_etablissement_id'=>(int)$x['host_etablissement_id'],'host_name'=>$x['host_name']],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),$actor]);
 
+    stageNotifyStudentReservation($pdo,$rid,'stage.placement.confirmed',[
+        'reservation_status'=>'CONFIRMEE','workflow_status'=>'ADMISSION_HOSPITALIERE_EN_ATTENTE',
+        'placement_id'=>$pid,'placement_uuid'=>$placementUuid,'placement_status'=>'CONFIRME',
+        'start_date'=>$start,'end_date'=>$end
+    ]);
+
     $pdo->commit();
     jsonResponse(true,"Placement confirmé vers « {$x['host_name']} ». Le stagiaire est maintenant visible côté structure d’accueil.",[
-        'placement_id'=>$pid,
+        'placement_id'=>$pid,'placement_uuid'=>$placementUuid,
         'letter_url'=>$letterUrl
     ]);
 }catch(Throwable $e){

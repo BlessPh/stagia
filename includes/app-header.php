@@ -564,7 +564,7 @@ $studentStagePages=[
     'student-reservations',
     'student-internships',
     'student-logbook',
-    'student-payments'
+    'my-payments'
 ];
 
 function stagiaMenuTitle(string $label):void{
@@ -1088,10 +1088,10 @@ if($isStudent){
                 'student-logbook'
             ],
             [
-                BASE_URL.'/views/espace-etudiant/paiements.php',
+                BASE_URL.'/views/paiements/index.php',
                 'bi-credit-card',
                 'Mes paiements',
-                'student-payments'
+                'my-payments'
             ]
         ]
     );
@@ -2238,6 +2238,13 @@ stagiaNav(
         <a class="dropdown-item" href="#">
             <i class="bi bi-person me-2"></i>
             Mon profil
+        </a>
+    </li>
+
+    <li>
+        <a class="dropdown-item" href="<?= BASE_URL ?>/views/paiements/index.php">
+            <i class="bi bi-credit-card me-2"></i>
+            Mes paiements
         </a>
     </li>
 

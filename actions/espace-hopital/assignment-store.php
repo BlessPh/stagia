@@ -2,6 +2,8 @@
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/auth.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-student-notifications.php';
+require_once __DIR__.'/../../includes/payment/financial-obligation.php';
 
 requirePermission($pdo,'assignment.hosting.manage');
 verifyAjaxCsrf();
@@ -65,6 +67,8 @@ try{
     $requiresPayment=((int)$a['frais_stage_requis']===1&&(float)$a['frais_stage_montant']>0)||((float)$a['frais_stagia_montant']>0);
 
     if($requiresPayment){
+        if((int)$a['frais_stage_requis']===1)
+            requireFinancialObligationPaid($pdo,'STAGE_RESERVATION','STAGE_RESERVATION',(string)$a['reservation_id']);
         $s=$pdo->prepare("
             SELECT id,reference,montant,devise,statut,paid_at
             FROM stage_invoices
@@ -117,11 +121,12 @@ try{
     }
 
     $actor=(int)($_SESSION['user_id']??0)?:null;
+    $assignmentUuid=assignmentUuid();
 
     $pdo->prepare("
         INSERT INTO stage_assignments(uuid,admission_id,host_unit_id,host_etablissement_id,statut,date_debut,date_fin,observation,assigned_by,assigned_at)
         VALUES(?,?,?,?,'ACTIVE',?,?,?,?,NOW())
-    ")->execute([assignmentUuid(),$admissionId,$unitId,$eid,$dateStart,$dateEnd,$observation?:null,$actor]);
+    ")->execute([$assignmentUuid,$admissionId,$unitId,$eid,$dateStart,$dateEnd,$observation?:null,$actor]);
 
     $assignmentId=(int)$pdo->lastInsertId();
     $previous=$a['statut'];
@@ -155,8 +160,11 @@ try{
 
     $pdo->commit();
 
+    stageNotifyStudentAssignment($pdo,$assignmentId,'stage.assignment.created');
+
     jsonResponse(true,"Stagiaire affecté au service « {$unit['nom']} ». Le stage passe en EN_COURS.",[
         'assignment_id'=>$assignmentId,
+        'assignment_uuid'=>$assignmentUuid,
         'admission_id'=>$admissionId,
         'host_unit_id'=>$unitId
     ]);
