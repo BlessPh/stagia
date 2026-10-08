@@ -35,7 +35,7 @@ try{
         LEFT JOIN stage_campaign_participations p ON p.id=a.participation_id
         LEFT JOIN stage_invoices i ON i.reservation_id=r.id
         LEFT JOIN financial_obligations fo ON fo.obligation_type='STAGE_RESERVATION'
-             AND fo.subject_type='STAGE_RESERVATION' AND fo.subject_key=CAST(r.id AS CHAR)
+             AND fo.subject_type='STAGE_RESERVATION' AND CAST(fo.subject_key AS UNSIGNED)=r.id
         WHERE a.statut='ACCEPTEE'
         ORDER BY COALESCE(i.date_emission,a.responded_at,a.created_at) DESC,a.id DESC
     ");
