@@ -44,6 +44,8 @@ RewriteRule ^student/logbook/([A-Fa-f0-9-]+)/submit/?$ student/logbook-submit.ph
 RewriteRule ^student/tasks/?$ student/tasks.php [L,QSA]
 RewriteCond %{REQUEST_METHOD} ^POST$
 RewriteRule ^student/tasks/([A-Fa-f0-9-]+)/(start|comment|complete)/?$ student/task-status.php?uuid=$1&action=$2 [L,QSA,NC]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/feedbacks/([A-Fa-f0-9-]+)/read/?$ student/feedback-read.php?uuid=$1 [L,QSA]
 RewriteRule ^student/feedbacks/?$ student/feedbacks.php [L,QSA]
 RewriteRule ^student/evaluations/?$ student/evaluations.php [L,QSA]
 

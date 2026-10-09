@@ -1,8 +1,8 @@
 {
   "document": {
     "title": "API étudiant — des campagnes aux rotations",
-    "version": "1.2.0",
-    "updated_at": "2026-10-08",
+    "version": "1.6.1",
+    "updated_at": "2026-10-09",
     "base_path": "/api/v1",
     "language": "fr",
     "scope": "Parcours mobile depuis les campagnes ouvertes jusqu'aux affectations et rotations."
@@ -55,6 +55,13 @@
     "admission": ["ATTENDU", "ADMIS", "EN_COURS", "TERMINE", "ANNULE"],
     "assignment": ["PLANIFIEE", "ACTIVE", "TERMINEE", "ANNULEE"],
     "rotation": ["PLANIFIEE", "ACTIVE", "TERMINEE", "ANNULEE"],
+    "attendance": ["PRESENT", "RETARD", "ABSENT", "JUSTIFIE", "GARDE"],
+    "task": ["A_FAIRE", "EN_COURS", "TERMINEE", "A_REVOIR", "VALIDEE", "ANNULEE"],
+    "task_priority": ["BASSE", "NORMALE", "HAUTE", "URGENTE"],
+    "logbook": ["BROUILLON", "SOUMISE", "VALIDEE", "REJETEE"],
+    "feedback": ["OBSERVATION", "ENCOURAGEMENT", "A_AMELIORER", "AVERTISSEMENT"],
+    "evaluation_type": ["CONTINUE", "MI_ROTATION", "FIN_ROTATION"],
+    "evaluation_status": ["VALIDEE", "FINALISEE"],
     "completion": ["EN_PREPARATION", "PRET", "VALIDE", "REFUSE", "ANNULE"],
     "workflow": [
       "DECISION_UNIVERSITAIRE_EN_ATTENTE",
@@ -466,6 +473,292 @@
         "La rotation cible un service du département ou une unité enfant de ce service.",
         "Une anomalie historique reste visible avec integrity.valid=false."
       ]
+    },
+    {
+      "id": "list_attendance_history",
+      "method": "GET",
+      "path": "/student/attendance",
+      "purpose": "Consulter l'historique filtrable et paginé des présences de l'étudiant.",
+      "query": [
+        {"name": "assignment_uuid", "type": "uuid", "optional": true},
+        {"name": "rotation_uuid", "type": "uuid", "optional": true},
+        {"name": "status", "aliases": ["statuses"], "multiple": true, "enum": "attendance"},
+        {"name": "date_from", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "date_to", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "success_status": 200,
+      "data": {
+        "items": "Attendance[]",
+        "stats": "{total, present, late, absent, justified, guard, effective_presence, attendance_rate, minutes_late, total_duration_minutes, validated}",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "{assignment_uuid, rotation_uuid, statuses, date_from, date_to}",
+        "available_filters": "{statuses, per_page_max}"
+      },
+      "attendance": {
+        "uuid": "uuid|null",
+        "date": "date",
+        "status": "PRESENT | RETARD | ABSENT | JUSTIFIE | GARDE",
+        "arrival_time": "time|null",
+        "departure_time": "time|null",
+        "source": "string|null",
+        "minutes_late": "integer",
+        "duration_minutes": "integer|null",
+        "justification": "string|null",
+        "observation": "string|null",
+        "validated": "boolean",
+        "validated_at": "datetime|null",
+        "validator": "{user_id, name}|null",
+        "rotation": "{uuid, sequence}",
+        "assignment": "{uuid, status, start_date, end_date}",
+        "campaign": "{code, title}",
+        "hospital": "{code, name}",
+        "unit": "{id, code, name, type}|null"
+      },
+      "statistics_scope": "Les statistiques et le taux de présence portent sur tous les résultats filtrés, pas seulement sur la page courante.",
+      "errors": {
+        "422": "Statut, date ou intervalle de dates invalide."
+      }
+    },
+    {
+      "id": "record_attendance_arrival",
+      "method": "POST",
+      "path": "/student/attendance/arrival",
+      "purpose": "Pointer l'arrivée de l'étudiant dans la rotation active du jour.",
+      "body": {},
+      "success_status": 200,
+      "data": {
+        "punch": "AttendancePunchContext"
+      },
+      "rules": [
+        "Le serveur résout l'affectation et la rotation depuis l'utilisateur authentifié et la date courante.",
+        "Aucun assignment_uuid ni rotation_uuid n'est accepté depuis le client.",
+        "Une arrivée déjà enregistrée ne peut pas être enregistrée une seconde fois."
+      ],
+      "errors": {
+        "422": "Aucune rotation active ou arrivée déjà pointée."
+      }
+    },
+    {
+      "id": "record_attendance_departure",
+      "method": "POST",
+      "path": "/student/attendance/departure",
+      "purpose": "Pointer le départ de l'étudiant pour la présence ouverte du jour.",
+      "body": {},
+      "success_status": 200,
+      "data": {
+        "punch": "AttendancePunchContext"
+      },
+      "rules": [
+        "Une arrivée doit avoir été enregistrée auparavant.",
+        "Le départ ne peut être enregistré qu'une fois.",
+        "Aucun identifiant d'affectation ou de rotation n'est fourni par le client."
+      ],
+      "errors": {
+        "422": "Arrivée absente, départ déjà pointé ou aucune rotation active."
+      }
+    },
+    {
+      "id": "get_execution_context",
+      "method": "GET",
+      "path": "/student/execution-context",
+      "alias": "/student/attendance/context",
+      "purpose": "Charger le contexte mobile complet de l'affectation et de la rotation courante.",
+      "query": [{"name": "assignment_uuid", "type": "uuid", "optional": true}],
+      "data": {
+        "context": "{date, assignment, campaign, hospital, department, current_rotation, next_rotation, attendance, actions, capabilities, reason, unlock_date}|null",
+        "execution": "objet historique conservé pour compatibilité",
+        "punch": "objet historique conservé pour compatibilité"
+      },
+      "response_example": {
+        "success": true,
+        "message": "",
+        "data": {
+          "context": {
+            "date": "2026-10-09",
+            "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-31"}},
+            "campaign": {"id": 39, "uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage clinique 2026"},
+            "hospital": {"id": 7, "code": "HOP-001", "name": "Hôpital Général", "phone": "+243810000000", "email": "contact@hopital.cd", "address": "12, avenue de la Santé", "city": "Kinshasa", "province": "Kinshasa"},
+            "department": {"id": 3, "code": "DEP-MED", "name": "Médecine", "type": "DEPARTEMENT"},
+            "current_rotation": {"id": 81, "uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}, "service": {"id": 8, "code": "SRV-PED", "name": "Pédiatrie", "type": "SERVICE"}, "unit": null, "supervisor": {"user_id": 14, "name": "Docteur Encadreur", "function": "Maître de stage"}, "objectives": null, "observation": null},
+            "next_rotation": null,
+            "attendance": {"uuid": "attendance-uuid", "date_presence": "2026-10-09", "heure_arrivee": "08:02:00", "heure_depart": null, "statut": "PRESENT"},
+            "actions": {"arrival": {"allowed": false, "method": "POST", "path": "/api/v1/student/attendance/arrival"}, "departure": {"allowed": true, "method": "POST", "path": "/api/v1/student/attendance/departure"}, "logbook": {"allowed": true, "method": "POST", "path": "/api/v1/student/logbook"}},
+            "capabilities": {"attendance": true, "logbook": true, "evaluation": true},
+            "reason": null,
+            "unlock_date": null
+          },
+          "execution": {"date": "2026-10-09", "current_rotation": {}, "next_rotation": null, "can_logbook": true, "can_attendance": true, "can_evaluation": true, "reason": null, "unlock_date": null},
+          "punch": {"date": "2026-10-09", "assignment_id": 47, "attendance": {}, "can_punch": true, "next_action": "DEPART", "reason": null}
+        }
+      },
+      "consistency": "Lorsque assignment_uuid est fourni, le contexte d'exécution et le pointage sont tous les deux limités à cette affectation."
+    },
+    {
+      "id": "list_student_tasks",
+      "method": "GET",
+      "path": "/student/tasks",
+      "purpose": "Lister les tâches normalisées et les actions actuellement permises.",
+      "query": [
+        {"name": "status", "aliases": ["statuses"], "multiple": true, "enum": "task"},
+        {"name": "priority", "aliases": ["priorities"], "multiple": true, "enum": "task_priority"},
+        {"name": "assignment_uuid", "type": "uuid", "optional": true},
+        {"name": "rotation_uuid", "type": "uuid", "optional": true},
+        {"name": "due_from", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "due_to", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "data": {
+        "items": "Task[] avec assignment, rotation, hospital, service, unit et actions",
+        "stats": "{total, a_faire, en_cours, terminees, a_revoir, validees, annulees}",
+        "progress": "pourcentage des tâches non annulées qui sont validées",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "filtres appliqués",
+        "available_filters": "statuts, priorités et maximum de pagination"
+      },
+      "response_example": {
+        "success": true,
+        "message": "",
+        "data": {
+          "items": [{"uuid": "task-uuid", "title": "Consultation pédiatrique", "description": "Anamnèse supervisée.", "priority": "HAUTE", "status": "A_FAIRE", "due_date": "2026-10-12", "student_comment": null, "supervisor_comment": null, "started_at": null, "completed_at": null, "validated_at": null, "created_at": "2026-10-08 09:00:00", "updated_at": "2026-10-08 09:00:00", "training_plan_item": {"id": 4, "title": "Consultation supervisée"}, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-31"}}, "rotation": {"uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}}, "hospital": {"id": 7, "code": "HOP-001", "name": "Hôpital Général", "phone": "+243810000000"}, "service": {"id": 8, "code": "SRV-PED", "name": "Pédiatrie", "type": "SERVICE"}, "unit": null, "actions": {"start": {"allowed": true, "method": "POST", "path": "/api/v1/student/tasks/task-uuid/start"}, "comment": {"allowed": true, "method": "POST", "path": "/api/v1/student/tasks/task-uuid/comment"}, "complete": {"allowed": false, "method": "POST", "path": "/api/v1/student/tasks/task-uuid/complete"}}}],
+          "stats": {"total": 4, "a_faire": 1, "en_cours": 1, "terminees": 1, "a_revoir": 0, "validees": 1, "annulees": 0},
+          "progress": 25,
+          "pagination": {"page": 1, "per_page": 20, "total": 4, "pages": 1, "from": 1, "to": 4},
+          "filters": {"statuses": ["A_FAIRE"], "priorities": ["HAUTE"], "assignment_uuid": "assignment-uuid", "rotation_uuid": "rotation-uuid", "due_from": "2026-10-01", "due_to": "2026-10-31"},
+          "available_filters": {"statuses": ["A_FAIRE", "EN_COURS", "TERMINEE", "A_REVOIR", "VALIDEE", "ANNULEE"], "priorities": ["BASSE", "NORMALE", "HAUTE", "URGENTE"], "per_page_max": 100}
+        }
+      }
+    },
+    {
+      "id": "change_student_task",
+      "method": "POST",
+      "path": "/student/tasks/{task_uuid}/{action}",
+      "path_parameters": {"task_uuid": "uuid", "action": "start | comment | complete"},
+      "body": {"comment": "string, obligatoire pour comment"},
+      "data": {"task": "Task complet et actualisé avec ses nouvelles actions autorisées"},
+      "response_example": {"success": true, "message": "Tache demarree.", "data": {"task": {"uuid": "task-uuid", "title": "Consultation pédiatrique", "description": "Anamnèse supervisée.", "priority": "HAUTE", "status": "EN_COURS", "due_date": "2026-10-12", "student_comment": null, "supervisor_comment": null, "started_at": "2026-10-09 08:15:00", "completed_at": null, "validated_at": null, "training_plan_item": {"id": 4, "title": "Consultation supervisée"}, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-31"}}, "rotation": {"uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}}, "hospital": {"id": 7, "code": "HOP-001", "name": "Hôpital Général", "phone": "+243810000000"}, "service": {"id": 8, "code": "SRV-PED", "name": "Pédiatrie", "type": "SERVICE"}, "unit": null, "actions": {"start": {"allowed": false, "method": "POST", "path": "/api/v1/student/tasks/task-uuid/start"}, "comment": {"allowed": true, "method": "POST", "path": "/api/v1/student/tasks/task-uuid/comment"}, "complete": {"allowed": true, "method": "POST", "path": "/api/v1/student/tasks/task-uuid/complete"}}}}}
+    },
+    {
+      "id": "list_student_logbook",
+      "method": "GET",
+      "path": "/student/logbook",
+      "query": [
+        {"name": "status", "aliases": ["statuses"], "multiple": true, "enum": "logbook"},
+        {"name": "assignment_uuid", "type": "uuid", "optional": true},
+        {"name": "rotation_uuid", "type": "uuid", "optional": true},
+        {"name": "date_from", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "date_to", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "editable", "type": "boolean", "optional": true},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "data": {
+        "items": "LogbookEntry[]",
+        "stats": "{total, draft, submitted, validated, rejected, activities}",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "filtres appliqués",
+        "available_filters": "statuts, editable et maximum de pagination"
+      },
+      "response_example": {"success": true, "message": "", "data": {"items": [{"uuid": "logbook-uuid", "date": "2026-10-09", "status": "BROUILLON", "summary": "Consultations pédiatriques.", "learning": "Signes de gravité.", "difficulties": null, "observation": null, "submitted_at": null, "validated_at": null, "validator_comment": null, "editable": true, "can_submit": true, "activities": [{"uuid": "activity-uuid", "activity": "Anamnèse", "description": "Interrogatoire supervisé.", "category": "PARTICIPATION", "involvement_level": "REALISE_SUPERVISE", "quantity": 3, "observation": null}], "activities_count": 1, "rotation": {"uuid": "rotation-uuid", "sequence": 1}, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "start_date": "2026-10-01", "end_date": "2026-10-31"}, "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"code": "HOP-001", "name": "Hôpital Général"}, "unit": {"code": "UNI-CONS", "name": "Consultation"}}], "stats": {"total": 1, "draft": 1, "submitted": 0, "validated": 0, "rejected": 0, "activities": 1}, "pagination": {"page": 1, "per_page": 20, "total": 1, "pages": 1, "from": 1, "to": 1}, "filters": {"assignment_uuid": "assignment-uuid", "rotation_uuid": "rotation-uuid", "statuses": ["BROUILLON"], "date_from": "2026-10-01", "date_to": "2026-10-31", "editable": true}, "available_filters": {"statuses": ["BROUILLON", "SOUMISE", "VALIDEE", "REJETEE"], "editable": [true, false], "per_page_max": 100}}}
+    },
+    {
+      "id": "save_student_logbook",
+      "method": "POST",
+      "path": "/student/logbook",
+      "purpose": "Créer ou modifier un brouillon du journal.",
+      "data": {"entry": "LogbookEntry complet rechargé après enregistrement"},
+      "response_example": {"success": true, "message": "Journal enregistré en brouillon.", "data": {"entry": {"uuid": "logbook-uuid", "date": "2026-10-09", "status": "BROUILLON", "summary": "Consultations pédiatriques.", "learning": "Signes de gravité.", "difficulties": null, "observation": null, "submitted_at": null, "validated_at": null, "validator_comment": null, "activities": [], "activities_count": 0, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-31"}}, "rotation": {"uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}}, "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"code": "HOP-001", "name": "Hôpital Général"}, "service": {"id": 8, "code": "SRV-PED", "name": "Pédiatrie", "type": "SERVICE"}, "unit": null, "actions": {"edit": {"allowed": true, "method": "POST", "path": "/api/v1/student/logbook"}, "submit": {"allowed": true, "method": "POST", "path": "/api/v1/student/logbook/logbook-uuid/submit"}}}}}
+    },
+    {
+      "id": "submit_student_logbook",
+      "method": "POST",
+      "path": "/student/logbook/{logbook_uuid}/submit",
+      "purpose": "Soumettre un brouillon à l'encadreur de manière idempotente.",
+      "data": {"entry": "LogbookEntry complet, y compris lors d'une nouvelle tentative idempotente"},
+      "response_example": {"success": true, "message": "Journal soumis pour validation.", "data": {"entry": {"uuid": "logbook-uuid", "date": "2026-10-09", "status": "SOUMISE", "summary": "Consultations pédiatriques.", "learning": "Signes de gravité.", "difficulties": null, "observation": null, "submitted_at": "2026-10-09 17:10:00", "validated_at": null, "validator_comment": null, "activities": [], "activities_count": 0, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-31"}}, "rotation": {"uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}}, "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"code": "HOP-001", "name": "Hôpital Général"}, "service": {"id": 8, "code": "SRV-PED", "name": "Pédiatrie", "type": "SERVICE"}, "unit": null, "actions": {"edit": {"allowed": false, "method": "POST", "path": "/api/v1/student/logbook"}, "submit": {"allowed": false, "method": "POST", "path": "/api/v1/student/logbook/logbook-uuid/submit"}}}}}
+    },
+    {
+      "id": "list_student_feedbacks",
+      "method": "GET",
+      "path": "/student/feedbacks",
+      "purpose": "Lister les feedbacks publiés sans les marquer automatiquement comme lus.",
+      "query": [
+        {"name": "type", "aliases": ["types"], "multiple": true, "enum": "feedback"},
+        {"name": "assignment_uuid", "type": "uuid", "optional": true},
+        {"name": "rotation_uuid", "type": "uuid", "optional": true},
+        {"name": "seen", "type": "boolean", "optional": true},
+        {"name": "date_from", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "date_to", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "data": {
+        "items": "Feedback[] avec assignment, rotation, hospital, unit, author et action read",
+        "stats": "{total, observations, encouragements, a_ameliorer, avertissements, unread, read}",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "filtres appliqués",
+        "available_filters": "types, seen et maximum de pagination"
+      },
+      "response_example": {
+        "success": true,
+        "message": "",
+        "data": {
+          "items": [{"uuid": "feedback-uuid", "date": "2026-10-09", "type": "ENCOURAGEMENT", "title": "Bonne progression", "comment": "Bonne qualité d'écoute.", "published_at": "2026-10-09 16:30:00", "seen": false, "seen_at": null, "assignment": {"uuid": "assignment-uuid"}, "rotation": {"uuid": "rotation-uuid", "sequence": 1}, "hospital": {"name": "Hôpital Général"}, "unit": {"name": "Consultation"}, "author": {"name": "Docteur Encadreur"}, "actions": {"read": {"allowed": true, "method": "POST", "endpoint": "/api/v1/student/feedbacks/feedback-uuid/read"}}}],
+          "stats": {"total": 3, "observations": 0, "encouragements": 2, "a_ameliorer": 1, "avertissements": 0, "unread": 2, "read": 1},
+          "pagination": {"page": 1, "per_page": 20, "total": 3, "pages": 1, "from": 1, "to": 3},
+          "filters": {"types": ["ENCOURAGEMENT", "A_AMELIORER"], "assignment_uuid": "assignment-uuid", "rotation_uuid": "rotation-uuid", "seen": false, "date_from": "2026-10-01", "date_to": "2026-10-31"},
+          "available_filters": {"types": ["OBSERVATION", "ENCOURAGEMENT", "A_AMELIORER", "AVERTISSEMENT"], "seen": [true, false], "per_page_max": 100}
+        }
+      },
+      "rule": "La consultation de la collection ne modifie jamais student_seen_at."
+    },
+    {
+      "id": "mark_student_feedback_read",
+      "method": "POST",
+      "path": "/student/feedbacks/{feedback_uuid}/read",
+      "purpose": "Marquer explicitement un seul feedback visible comme lu.",
+      "body": {},
+      "data": {"feedback": "Feedback complet actualisé"},
+      "response_example": {"success": true, "message": "Feedback marque comme lu.", "data": {"feedback": {"uuid": "feedback-uuid", "date": "2026-10-09", "type": "ENCOURAGEMENT", "title": "Bonne progression", "comment": "Bonne qualité d'écoute.", "published_at": "2026-10-09 16:30:00", "seen": true, "seen_at": "2026-10-09 17:05:00", "assignment": {"uuid": "assignment-uuid"}, "rotation": {"uuid": "rotation-uuid", "sequence": 1}, "hospital": {"name": "Hôpital Général"}, "unit": {"name": "Consultation"}, "author": {"name": "Docteur Encadreur"}, "actions": {"read": {"allowed": false, "method": "POST", "endpoint": "/api/v1/student/feedbacks/feedback-uuid/read"}}}}},
+      "errors": {"404": "Feedback absent ou non visible pour l'étudiant."}
+    },
+    {
+      "id": "list_student_evaluations",
+      "method": "GET",
+      "path": "/student/evaluations",
+      "purpose": "Lister les évaluations validées ou finalisées avec l'identité fonctionnelle de l'évaluateur.",
+      "query": [
+        {"name": "type", "aliases": ["types"], "multiple": true, "enum": "evaluation_type"},
+        {"name": "status", "aliases": ["statuses"], "multiple": true, "enum": "evaluation_status", "default": ["VALIDEE", "FINALISEE"]},
+        {"name": "assignment_uuid", "type": "uuid", "optional": true},
+        {"name": "rotation_uuid", "type": "uuid", "optional": true},
+        {"name": "date_from", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "date_to", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "data": {
+        "items": "Evaluation[] avec evaluator, score_summary, scores et contexte du stage",
+        "stats": "{total, continuous, mid_rotation, final_rotation, validated, finalized, average}",
+        "final_evaluation": "Evaluation|null",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "filtres appliqués",
+        "available_filters": "types, statuts et maximum de pagination"
+      },
+      "response_example": {
+        "success": true,
+        "message": "",
+        "data": {
+          "items": [{"uuid": "evaluation-uuid", "type": "FIN_ROTATION", "status": "FINALISEE", "note": 16.5, "appreciation": "Très bonne progression clinique.", "strengths": "Communication et raisonnement clinique.", "improvement_areas": "Gagner en rapidité.", "evaluated_at": "2026-10-15 14:00:00", "submitted_at": "2026-10-15 14:10:00", "validated_at": "2026-10-15 15:00:00", "finalized_at": "2026-10-15 16:00:00", "score_summary": {"total": 33, "maximum": 40, "percentage": 82.5}, "scores": [{"code": "COMP-CLIN", "nom": "Raisonnement clinique", "categorie": "CLINIQUE", "note": 17, "note_max": 20, "poids": 1, "commentaire": "Bonne analyse."}], "evaluator": {"user_id": 14, "name": "Docteur Encadreur", "function": "Maître de stage"}, "rotation": {"uuid": "rotation-uuid", "sequence": 1}, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "start_date": "2026-10-01", "end_date": "2026-10-31"}, "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"code": "HOP-001", "name": "Hôpital Général"}, "unit": {"id": 9, "code": "UNI-CONS", "name": "Consultation", "type": "UNITE"}}],
+          "stats": {"total": 2, "continuous": 1, "mid_rotation": 0, "final_rotation": 1, "validated": 1, "finalized": 1, "average": 15.75},
+          "final_evaluation": {"uuid": "evaluation-uuid", "type": "FIN_ROTATION", "status": "FINALISEE", "note": 16.5},
+          "pagination": {"page": 1, "per_page": 20, "total": 2, "pages": 1, "from": 1, "to": 2},
+          "filters": {"types": ["CONTINUE", "FIN_ROTATION"], "statuses": ["VALIDEE", "FINALISEE"], "assignment_uuid": "assignment-uuid", "rotation_uuid": "rotation-uuid", "date_from": "2026-10-01", "date_to": "2026-10-31"},
+          "available_filters": {"types": ["CONTINUE", "MI_ROTATION", "FIN_ROTATION"], "statuses": ["VALIDEE", "FINALISEE"], "per_page_max": 100}
+        }
+      }
     }
   ],
   "notification_events": [

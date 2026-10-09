@@ -36,7 +36,8 @@ function studentProfileForAttendance(PDO $pdo,int $userId):array
 function studentAttendanceAssignmentToday(
     PDO $pdo,
     int $studentId,
-    string $today
+    string $today,
+    ?int $requestedAssignmentId=null
 ):?int{
     /*
      * On ne prend jamais rotation_id depuis le navigateur.
@@ -64,10 +65,13 @@ function studentAttendanceAssignmentToday(
          AND r.statut<>'ANNULEE'
         WHERE se.student_id=?
           AND ? BETWEEN r.date_debut AND r.date_fin
+          ".($requestedAssignmentId!==null?' AND sa.id=?':'')."
         ORDER BY sa.id DESC
         LIMIT 1
     ");
-    $s->execute([$studentId,$today]);
+    $params=[$studentId,$today];
+    if($requestedAssignmentId!==null)$params[]=$requestedAssignmentId;
+    $s->execute($params);
 
     $id=$s->fetchColumn();
 
@@ -77,7 +81,8 @@ function studentAttendanceAssignmentToday(
 function studentNextRotationForAttendance(
     PDO $pdo,
     int $studentId,
-    string $today
+    string $today,
+    ?int $requestedAssignmentId=null
 ):?array{
     $s=$pdo->prepare("
         SELECT
@@ -108,10 +113,13 @@ function studentNextRotationForAttendance(
           ON u.id=r.host_unit_id
         WHERE se.student_id=?
           AND r.date_debut>?
+          ".($requestedAssignmentId!==null?' AND sa.id=?':'')."
         ORDER BY r.date_debut,r.sequence_no
         LIMIT 1
     ");
-    $s->execute([$studentId,$today]);
+    $params=[$studentId,$today];
+    if($requestedAssignmentId!==null)$params[]=$requestedAssignmentId;
+    $s->execute($params);
 
     $row=$s->fetch(PDO::FETCH_ASSOC);
 
@@ -121,7 +129,8 @@ function studentNextRotationForAttendance(
 function studentAttendancePunchContext(
     PDO $pdo,
     int $userId,
-    ?string $date=null
+    ?string $date=null,
+    ?int $requestedAssignmentId=null
 ):array{
     $today=stageExecutionDate($date);
     $profile=studentProfileForAttendance($pdo,$userId);
@@ -130,14 +139,16 @@ function studentAttendancePunchContext(
     $assignmentId=studentAttendanceAssignmentToday(
         $pdo,
         $studentId,
-        $today
+        $today,
+        $requestedAssignmentId
     );
 
     if(!$assignmentId){
         $next=studentNextRotationForAttendance(
             $pdo,
             $studentId,
-            $today
+            $today,
+            $requestedAssignmentId
         );
 
         return [
@@ -263,13 +274,13 @@ function studentAttendancePunch(PDO $pdo,int $userId,string $action):array
                 $s=$pdo->prepare("INSERT INTO stage_attendances(uuid,rotation_id,assignment_id,student_id,host_etablissement_id,date_presence,heure_arrivee,heure_depart,statut,minutes_retard,source,recorded_by) VALUES(?,?,?,?,?,?,?,NULL,'PRESENT',0,'MOBILE',?)");
                 $s->execute([stagiaUuidV4(),$rotationId,$assignmentId,$studentId,$hostId,$today,$now,$userId]);
             }
-            $message='Arrivee pointee a '.substr($now,0,5).'.';
+            $message='Arrivée pointée à '.substr($now,0,5).'.';
         }else{
             if(!$existing||empty($existing['heure_arrivee']))throw new RuntimeException("Vous devez d'abord pointer votre arrivee.");
             if(!empty($existing['heure_depart']))throw new RuntimeException("Votre depart est deja pointe aujourd'hui.");
             $s=$pdo->prepare('UPDATE stage_attendances SET heure_depart=?,updated_at=CURRENT_TIMESTAMP WHERE id=?');
             $s->execute([$now,(int)$existing['id']]);
-            $message='Depart pointe a '.substr($now,0,5).'.';
+            $message='Départ pointé à '.substr($now,0,5).'.';
         }
 
         if($ownTransaction)$pdo->commit();

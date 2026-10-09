@@ -165,3 +165,93 @@ if(!function_exists('stageTaskStudentChange')){
         return ['message'=>$message,'task_uuid'=>$task['uuid'],'status'=>$status];
     }
 }
+
+if(!function_exists('stageTaskStudentApiList')){
+    /** Collection normalisee et paginee reservee au contrat API mobile. */
+    function stageTaskStudentApiList(PDO $pdo,int $studentId,array $filters=[]):array{
+        stageTaskEnsureSchema($pdo);
+        $where=['t.student_id=?'];$params=[$studentId];
+        $placeholders=static fn(array $values):string=>implode(',',array_fill(0,count($values),'?'));
+        $statuses=(array)($filters['statuses']??[]);$priorities=(array)($filters['priorities']??[]);
+        if($statuses){$where[]='t.statut IN('.$placeholders($statuses).')';array_push($params,...$statuses);}
+        if($priorities){$where[]='t.priorite IN('.$placeholders($priorities).')';array_push($params,...$priorities);}
+        foreach(['assignment_uuid'=>'a.uuid','rotation_uuid'=>'r.uuid'] as $key=>$column){
+            $value=trim((string)($filters[$key]??''));if($value!==''){$where[]=$column.'=?';$params[]=$value;}
+        }
+        if(!empty($filters['due_from'])){$where[]='t.date_echeance>=?';$params[]=$filters['due_from'];}
+        if(!empty($filters['due_to'])){$where[]='t.date_echeance<=?';$params[]=$filters['due_to'];}
+        if(!empty($filters['uuid'])){$where[]='t.uuid=?';$params[]=$filters['uuid'];}
+
+        $hasPlan=stageTaskTableExists($pdo,'stage_training_plan_items')&&stageTaskColumnExists($pdo,'stage_training_plan_items','titre');
+        $planTitle=$hasPlan?'pi.titre':'NULL';$planJoin=$hasPlan?' LEFT JOIN stage_training_plan_items pi ON pi.id=t.training_plan_item_id':'';
+        $sql="SELECT t.*,a.uuid assignment_uuid,a.statut assignment_status,a.date_debut assignment_start,a.date_fin assignment_end,
+                r.uuid rotation_uuid,r.sequence_no rotation_sequence,r.statut rotation_status,r.date_debut rotation_start,r.date_fin rotation_end,
+                e.id hospital_id,e.code hospital_code,e.nom hospital_name,e.telephone hospital_phone,
+                target.id target_id,target.code target_code,target.nom target_name,target.type target_type,
+                parent.id parent_id,parent.code parent_code,parent.nom parent_name,parent.type parent_type,
+                $planTitle plan_item_title,
+                EXISTS(SELECT 1 FROM stage_rotations active_r WHERE active_r.assignment_id=a.id
+                    AND active_r.statut IN('PLANIFIEE','ACTIVE') AND CURDATE() BETWEEN active_r.date_debut AND active_r.date_fin) has_active_rotation
+            FROM stage_tasks t JOIN stage_assignments a ON a.id=t.assignment_id
+            JOIN etablissements e ON e.id=t.host_etablissement_id
+            LEFT JOIN stage_rotations r ON r.id=t.rotation_id
+            LEFT JOIN host_units target ON target.id=COALESCE(r.host_unit_id,a.host_unit_id)
+            LEFT JOIN host_units parent ON parent.id=target.parent_id
+            $planJoin WHERE ".implode(' AND ',$where)."
+            ORDER BY FIELD(t.statut,'A_REVOIR','A_FAIRE','EN_COURS','TERMINEE','VALIDEE','ANNULEE'),
+                     t.date_echeance IS NULL,t.date_echeance,t.id DESC";
+        $stmt=$pdo->prepare($sql);$stmt->execute($params);$rows=$stmt->fetchAll(PDO::FETCH_ASSOC);
+        $items=[];$stats=['total'=>0,'a_faire'=>0,'en_cours'=>0,'terminees'=>0,'a_revoir'=>0,'validees'=>0,'annulees'=>0];
+        $buckets=['A_FAIRE'=>'a_faire','EN_COURS'=>'en_cours','TERMINEE'=>'terminees','A_REVOIR'=>'a_revoir','VALIDEE'=>'validees','ANNULEE'=>'annulees'];
+        $eligible=0;$validated=0;
+        foreach($rows as $row){
+            $status=(string)$row['statut'];$active=(bool)$row['has_active_rotation']&&$row['assignment_status']!=='ANNULEE';
+            $targetType=strtoupper((string)($row['target_type']??''));$isUnit=in_array($targetType,['UNITE','UNIT'],true);
+            $items[]=[
+                'uuid'=>$row['uuid'],'title'=>$row['titre'],'description'=>$row['description'],'priority'=>$row['priorite'],
+                'status'=>$status,'due_date'=>$row['date_echeance'],'student_comment'=>$row['commentaire_stagiaire'],
+                'supervisor_comment'=>$row['commentaire_encadreur'],'started_at'=>$row['started_at'],
+                'completed_at'=>$row['completed_at'],'validated_at'=>$row['validated_at'],
+                'created_at'=>$row['created_at'],'updated_at'=>$row['updated_at'],
+                'training_plan_item'=>$row['training_plan_item_id']!==null?[
+                    'id'=>(int)$row['training_plan_item_id'],'title'=>$row['plan_item_title']]:null,
+                'assignment'=>['uuid'=>$row['assignment_uuid'],'status'=>$row['assignment_status'],
+                    'period'=>['start_date'=>$row['assignment_start'],'end_date'=>$row['assignment_end']]],
+                'rotation'=>$row['rotation_uuid']!==null?['uuid'=>$row['rotation_uuid'],'sequence'=>(int)$row['rotation_sequence'],
+                    'status'=>$row['rotation_status'],'period'=>['start_date'=>$row['rotation_start'],'end_date'=>$row['rotation_end']]]:null,
+                'hospital'=>['id'=>(int)$row['hospital_id'],'code'=>$row['hospital_code'],'name'=>$row['hospital_name'],'phone'=>$row['hospital_phone']],
+                'service'=>$isUnit?['id'=>$row['parent_id']!==null?(int)$row['parent_id']:null,'code'=>$row['parent_code'],
+                    'name'=>$row['parent_name'],'type'=>$row['parent_type']]:['id'=>$row['target_id']!==null?(int)$row['target_id']:null,
+                    'code'=>$row['target_code'],'name'=>$row['target_name'],'type'=>$row['target_type']],
+                'unit'=>$isUnit?['id'=>(int)$row['target_id'],'code'=>$row['target_code'],'name'=>$row['target_name'],'type'=>$row['target_type']]:null,
+                'actions'=>[
+                    'start'=>['allowed'=>$active&&in_array($status,['A_FAIRE','A_REVOIR'],true),'method'=>'POST','path'=>'/api/v1/student/tasks/'.$row['uuid'].'/start'],
+                    'comment'=>['allowed'=>$active&&!in_array($status,['VALIDEE','ANNULEE'],true),'method'=>'POST','path'=>'/api/v1/student/tasks/'.$row['uuid'].'/comment'],
+                    'complete'=>['allowed'=>$active&&$status==='EN_COURS','method'=>'POST','path'=>'/api/v1/student/tasks/'.$row['uuid'].'/complete']
+                ]
+            ];
+            $stats['total']++;if(isset($buckets[$status]))$stats[$buckets[$status]]++;
+            if($status!=='ANNULEE'){$eligible++;if($status==='VALIDEE')$validated++;}
+        }
+        $page=max(1,(int)($filters['page']??1));$perPage=max(1,min(100,(int)($filters['per_page']??20)));
+        $total=count($items);$pages=max(1,(int)ceil($total/$perPage));if($page>$pages)$page=$pages;
+        $offset=($page-1)*$perPage;$pageItems=array_slice($items,$offset,$perPage);
+        return ['items'=>$pageItems,'stats'=>$stats,'progress'=>$eligible?round($validated*100/$eligible):0,
+            'pagination'=>['page'=>$page,'per_page'=>$perPage,'total'=>$total,'pages'=>$pages,
+                'from'=>$total?$offset+1:0,'to'=>$total?$offset+count($pageItems):0],
+            'filters'=>['statuses'=>$statuses,'priorities'=>$priorities,
+                'assignment_uuid'=>($filters['assignment_uuid']??'')?:null,'rotation_uuid'=>($filters['rotation_uuid']??'')?:null,
+                'due_from'=>($filters['due_from']??'')?:null,'due_to'=>($filters['due_to']??'')?:null],
+            'available_filters'=>['statuses'=>['A_FAIRE','EN_COURS','TERMINEE','A_REVOIR','VALIDEE','ANNULEE'],
+                'priorities'=>['BASSE','NORMALE','HAUTE','URGENTE'],'per_page_max'=>100]];
+    }
+}
+
+if(!function_exists('stageTaskStudentApiItem')){
+    function stageTaskStudentApiItem(PDO $pdo,int $studentId,string $uuid):array{
+        $data=stageTaskStudentApiList($pdo,$studentId,['uuid'=>$uuid,'statuses'=>[],'priorities'=>[],
+            'assignment_uuid'=>'','rotation_uuid'=>'','due_from'=>'','due_to'=>'','page'=>1,'per_page'=>1]);
+        if(empty($data['items'][0]))throw new OutOfBoundsException('Tache introuvable.');
+        return $data['items'][0];
+    }
+}

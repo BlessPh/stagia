@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__.'/../api-auth.php';
+require_once __DIR__.'/../../../includes/student-logbook-api.php';
 
 requireApiMethod('GET');
 
@@ -10,6 +11,29 @@ $studentId=(int)$student['student_id'];
 
 $assignmentUuid=
     trim($_GET['assignment_uuid']??'');
+
+$rotationUuid=trim((string)($_GET['rotation_uuid']??''));
+$rawStatuses=$_GET['status']??$_GET['statuses']??[];
+$statusFilter=is_array($rawStatuses)?$rawStatuses:explode(',',(string)$rawStatuses);
+$statusFilter=array_values(array_unique(array_filter(array_map(
+    static function($status):string{
+        $status=strtoupper(trim((string)$status));
+        return match($status){'SOUMIS'=>'SOUMISE','VALIDE'=>'VALIDEE','REJETE'=>'REJETEE',default=>$status};
+    },$statusFilter
+))));
+$allowedStatuses=['BROUILLON','SOUMISE','VALIDEE','REJETEE'];
+$invalidStatuses=array_values(array_diff($statusFilter,$allowedStatuses));
+if($invalidStatuses)apiResponse(false,'Filtre status invalide.', ['allowed_values'=>$allowedStatuses],422);
+$dateFrom=trim((string)($_GET['date_from']??''));$dateTo=trim((string)($_GET['date_to']??''));
+foreach(['date_from'=>$dateFrom,'date_to'=>$dateTo] as $name=>$value){
+    if($value==='')continue;$parsed=DateTimeImmutable::createFromFormat('!Y-m-d',$value);
+    if(!$parsed||$parsed->format('Y-m-d')!==$value)apiResponse(false,'Filtre '.$name.' invalide.',[],422);
+}
+if($dateFrom!==''&&$dateTo!==''&&$dateFrom>$dateTo)apiResponse(false,'date_from doit précéder date_to.',[],422);
+$editableFilter=trim((string)($_GET['editable']??''));
+if($editableFilter!==''&&!in_array(strtolower($editableFilter),['1','0','true','false'],true))apiResponse(false,'Filtre editable invalide.',[],422);
+$editableFilter=$editableFilter===''?null:in_array(strtolower($editableFilter),['1','true'],true);
+$page=max(1,(int)($_GET['page']??1));$perPage=max(1,min(100,(int)($_GET['per_page']??20)));
 
 
 try{
@@ -250,8 +274,7 @@ try{
 
 
         $status=
-            strtoupper(
-                trim(
+            studentLogbookApiStatus(
                     (string)$pick(
                         $row,
                         [
@@ -260,7 +283,6 @@ try{
                         ],
                         ''
                     )
-                )
             );
 
 
@@ -633,14 +655,42 @@ try{
        RÉPONSE
     ====================================================== */
 
+    $items=array_values(array_filter($items,static function(array $item)use(
+        $rotationUuid,$statusFilter,$dateFrom,$dateTo,$editableFilter
+    ):bool{
+        if($rotationUuid!==''&&($item['rotation']['uuid']??null)!==$rotationUuid)return false;
+        if($statusFilter&&!in_array($item['status'],$statusFilter,true))return false;
+        if($dateFrom!==''&&$item['date']<$dateFrom)return false;
+        if($dateTo!==''&&$item['date']>$dateTo)return false;
+        if($editableFilter!==null&&(bool)$item['editable']!==$editableFilter)return false;
+        return true;
+    }));
+    $stats=['total'=>count($items),'draft'=>0,'submitted'=>0,'validated'=>0,'rejected'=>0,'activities'=>0];
+    foreach($items as $item){
+        $stats['activities']+=(int)$item['activities_count'];
+        $bucket=['BROUILLON'=>'draft','SOUMISE'=>'submitted','VALIDEE'=>'validated','REJETEE'=>'rejected'][$item['status']]??null;
+        if($bucket)$stats[$bucket]++;
+    }
+    $total=count($items);$pages=max(1,(int)ceil($total/$perPage));if($page>$pages)$page=$pages;
+    $offset=($page-1)*$perPage;$pageItems=array_slice($items,$offset,$perPage);
+
     apiResponse(
         true,
         '',
         [
 
-            'items'=>$items,
+            'items'=>$pageItems,
 
-            'stats'=>$stats
+            'stats'=>$stats,
+
+            'pagination'=>['page'=>$page,'per_page'=>$perPage,'total'=>$total,'pages'=>$pages,
+                'from'=>$total?$offset+1:0,'to'=>$total?$offset+count($pageItems):0],
+
+            'filters'=>['assignment_uuid'=>$assignmentUuid?:null,'rotation_uuid'=>$rotationUuid?:null,
+                'statuses'=>$statusFilter,'date_from'=>$dateFrom?:null,'date_to'=>$dateTo?:null,
+                'editable'=>$editableFilter],
+
+            'available_filters'=>['statuses'=>$allowedStatuses,'editable'=>[true,false],'per_page_max'=>100]
 
         ]
     );

@@ -65,19 +65,69 @@ function feedbackValidateDate(string $date,array $assignment,?array $rotation=nu
     $date=trim($date)?:date('Y-m-d');if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))throw new RuntimeException('Date invalide.');return$date;
 }
 function feedbackVerifyCsrf():void{$csrf=$_POST['csrf']??'';if(empty($_SESSION['csrf'])||!$csrf||!hash_equals($_SESSION['csrf'],$csrf)){if(function_exists('jsonResponse'))jsonResponse(false,'Jeton de sécurité invalide.',[],419);throw new RuntimeException('Jeton de sécurité invalide.');}}
-function feedbackStudentVisibleList(PDO $pdo,int $studentId,string $type=''):array{
-    $type=strtoupper(trim($type));$where=["se.student_id=?","f.actif=1","f.statut='PUBLIE'","f.visible_stagiaire=1"];$params=[$studentId];
-    if(in_array($type,['OBSERVATION','ENCOURAGEMENT','A_AMELIORER','AVERTISSEMENT'],true)){$where[]='f.type_feedback=?';$params[]=$type;}
-    $s=$pdo->prepare("SELECT f.id,f.uuid,f.assignment_id,f.rotation_id,f.date_feedback,f.type_feedback,f.titre,f.commentaire,f.published_at,f.student_seen_at,a.uuid assignment_uuid,r.uuid rotation_uuid,r.sequence_no,hu.nom unit_name,TRIM(CONCAT_WS(' ',u.prenom,u.nom,u.postnom)) author_name,et.nom host_name
-        FROM stage_supervision_feedbacks f JOIN stage_assignments a ON a.id=f.assignment_id JOIN stage_admissions ad ON ad.id=a.admission_id JOIN stage_reservations sr ON sr.id=ad.reservation_id JOIN stage_applications app ON app.id=sr.application_id JOIN student_academic_enrollments ae ON ae.id=app.academic_enrollment_id JOIN student_enrollments se ON se.id=ae.enrollment_id
+function feedbackStudentItem(array $x):array{
+    return [
+        'uuid'=>(string)$x['uuid'],
+        'date'=>$x['date_feedback'],
+        'type'=>$x['type_feedback'],
+        'title'=>$x['titre'],
+        'comment'=>$x['commentaire'],
+        'published_at'=>$x['published_at'],
+        'seen'=>$x['student_seen_at']!==null,
+        'seen_at'=>$x['student_seen_at'],
+        'assignment'=>['uuid'=>$x['assignment_uuid']],
+        'rotation'=>$x['rotation_uuid']!==null?['uuid'=>$x['rotation_uuid'],'sequence'=>(int)$x['sequence_no']]:null,
+        'hospital'=>['name'=>$x['host_name']],
+        'unit'=>$x['unit_name']!==null?['name'=>$x['unit_name']]:null,
+        'author'=>['name'=>$x['author_name']],
+        'actions'=>['read'=>['allowed'=>$x['student_seen_at']===null,'method'=>'POST','endpoint'=>'/api/v1/student/feedbacks/'.$x['uuid'].'/read']]
+    ];
+}
+function feedbackStudentVisibleList(PDO $pdo,int $studentId,array|string $filters=[]):array{
+    if(is_string($filters))$filters=['type'=>$filters];
+    $allowedTypes=['OBSERVATION','ENCOURAGEMENT','A_AMELIORER','AVERTISSEMENT'];
+    $rawTypes=$filters['types']??$filters['type']??[];
+    $types=is_array($rawTypes)?$rawTypes:explode(',',(string)$rawTypes);
+    $types=array_values(array_unique(array_filter(array_map(static fn($v):string=>strtoupper(trim((string)$v)),$types))));
+    $invalid=array_values(array_diff($types,$allowedTypes));
+    if($invalid)throw new InvalidArgumentException('Filtre type invalide : '.implode(', ',$invalid).'.');
+    $where=["se.student_id=?","f.actif=1","f.statut='PUBLIE'","f.visible_stagiaire=1"];$params=[$studentId];
+    if($types){$where[]='f.type_feedback IN('.implode(',',array_fill(0,count($types),'?')).')';array_push($params,...$types);}
+    $assignmentUuid=trim((string)($filters['assignment_uuid']??''));
+    $rotationUuid=trim((string)($filters['rotation_uuid']??''));
+    if($assignmentUuid!==''){$where[]='a.uuid=?';$params[]=$assignmentUuid;}
+    if($rotationUuid!==''){$where[]='r.uuid=?';$params[]=$rotationUuid;}
+    if(array_key_exists('seen',$filters)&&$filters['seen']!==''){
+        $seen=filter_var($filters['seen'],FILTER_VALIDATE_BOOLEAN,FILTER_NULL_ON_FAILURE);
+        if($seen===null)throw new InvalidArgumentException('Filtre seen invalide. Valeurs attendues : true ou false.');
+        $where[]=$seen?'f.student_seen_at IS NOT NULL':'f.student_seen_at IS NULL';
+    }else{$seen=null;}
+    $dateFrom=trim((string)($filters['date_from']??''));$dateTo=trim((string)($filters['date_to']??''));
+    foreach(['date_from'=>$dateFrom,'date_to'=>$dateTo] as $label=>$value){if($value!==''&&(!($d=DateTimeImmutable::createFromFormat('!Y-m-d',$value))||$d->format('Y-m-d')!==$value))throw new InvalidArgumentException('Filtre '.$label.' invalide. Format attendu : YYYY-MM-DD.');}
+    if($dateFrom!==''&&$dateTo!==''&&$dateFrom>$dateTo)throw new InvalidArgumentException('La date de debut ne peut pas etre posterieure a la date de fin.');
+    if($dateFrom!==''){$where[]='f.date_feedback>=?';$params[]=$dateFrom;}
+    if($dateTo!==''){$where[]='f.date_feedback<=?';$params[]=$dateTo;}
+    $page=max(1,(int)($filters['page']??1));$perPage=max(1,min(100,(int)($filters['per_page']??20)));
+    $from=" FROM stage_supervision_feedbacks f JOIN stage_assignments a ON a.id=f.assignment_id JOIN stage_admissions ad ON ad.id=a.admission_id JOIN stage_reservations sr ON sr.id=ad.reservation_id JOIN stage_applications app ON app.id=sr.application_id JOIN student_academic_enrollments ae ON ae.id=app.academic_enrollment_id JOIN student_enrollments se ON se.id=ae.enrollment_id
         LEFT JOIN stage_rotations r ON r.id=f.rotation_id LEFT JOIN host_units hu ON hu.id=r.host_unit_id LEFT JOIN users u ON u.id=f.created_by_user_id LEFT JOIN etablissements et ON et.id=a.host_etablissement_id
-        WHERE ".implode(' AND ',$where)." ORDER BY f.date_feedback DESC,f.published_at DESC,f.id DESC");
-    $s->execute($params);$items=$s->fetchAll(PDO::FETCH_ASSOC);
-    foreach($items as &$x){$x['id']=(int)$x['id'];$x['assignment_id']=(int)$x['assignment_id'];$x['rotation_id']=$x['rotation_id']!==null?(int)$x['rotation_id']:null;$x['seen']=$x['student_seen_at']!==null;}unset($x);
-    $s=$pdo->prepare("SELECT COUNT(*) total,SUM(f.type_feedback='ENCOURAGEMENT') encouragements,SUM(f.type_feedback='A_AMELIORER') a_ameliorer,SUM(f.type_feedback='AVERTISSEMENT') avertissements FROM stage_supervision_feedbacks f JOIN stage_assignments a ON a.id=f.assignment_id JOIN stage_admissions ad ON ad.id=a.admission_id JOIN stage_reservations sr ON sr.id=ad.reservation_id JOIN stage_applications app ON app.id=sr.application_id JOIN student_academic_enrollments ae ON ae.id=app.academic_enrollment_id JOIN student_enrollments se ON se.id=ae.enrollment_id WHERE se.student_id=? AND f.actif=1 AND f.statut='PUBLIE' AND f.visible_stagiaire=1");
-    $s->execute([$studentId]);$stats=$s->fetch(PDO::FETCH_ASSOC)?:[];foreach(['total','encouragements','a_ameliorer','avertissements'] as $k)$stats[$k]=(int)($stats[$k]??0);
-    $u=$pdo->prepare("UPDATE stage_supervision_feedbacks f JOIN stage_assignments a ON a.id=f.assignment_id JOIN stage_admissions ad ON ad.id=a.admission_id JOIN stage_reservations sr ON sr.id=ad.reservation_id JOIN stage_applications app ON app.id=sr.application_id JOIN student_academic_enrollments ae ON ae.id=app.academic_enrollment_id JOIN student_enrollments se ON se.id=ae.enrollment_id SET f.student_seen_at=COALESCE(f.student_seen_at,NOW()) WHERE se.student_id=? AND f.actif=1 AND f.statut='PUBLIE' AND f.visible_stagiaire=1 AND f.student_seen_at IS NULL");
-    $u->execute([$studentId]);return ['items'=>$items,'stats'=>$stats];
+        WHERE ".implode(' AND ',$where);
+    $s=$pdo->prepare("SELECT f.id,f.uuid,f.assignment_id,f.rotation_id,f.date_feedback,f.type_feedback,f.titre,f.commentaire,f.published_at,f.student_seen_at,a.uuid assignment_uuid,r.uuid rotation_uuid,r.sequence_no,hu.nom unit_name,TRIM(CONCAT_WS(' ',u.prenom,u.nom,u.postnom)) author_name,et.nom host_name
+        ".$from." ORDER BY f.date_feedback DESC,f.published_at DESC,f.id DESC");
+    $s->execute($params);$rows=$s->fetchAll(PDO::FETCH_ASSOC);$items=array_map('feedbackStudentItem',$rows);
+    $s=$pdo->prepare("SELECT COUNT(*) total,SUM(f.type_feedback='OBSERVATION') observations,SUM(f.type_feedback='ENCOURAGEMENT') encouragements,SUM(f.type_feedback='A_AMELIORER') a_ameliorer,SUM(f.type_feedback='AVERTISSEMENT') avertissements,SUM(f.student_seen_at IS NULL) unread,SUM(f.student_seen_at IS NOT NULL) `read` ".$from);
+    $s->execute($params);$stats=$s->fetch(PDO::FETCH_ASSOC)?:[];foreach(['total','observations','encouragements','a_ameliorer','avertissements','unread','read'] as $k)$stats[$k]=(int)($stats[$k]??0);
+    $total=count($items);$pages=max(1,(int)ceil($total/$perPage));if($page>$pages)$page=$pages;$offset=($page-1)*$perPage;$items=array_slice($items,$offset,$perPage);
+    return ['items'=>$items,'stats'=>$stats,'pagination'=>['page'=>$page,'per_page'=>$perPage,'total'=>$total,'pages'=>$pages,'from'=>$total?$offset+1:0,'to'=>$total?$offset+count($items):0],'filters'=>['types'=>$types,'assignment_uuid'=>$assignmentUuid?:null,'rotation_uuid'=>$rotationUuid?:null,'seen'=>$seen,'date_from'=>$dateFrom?:null,'date_to'=>$dateTo?:null],'available_filters'=>['types'=>$allowedTypes,'seen'=>[true,false],'per_page_max'=>100]];
+}
+function feedbackStudentMarkRead(PDO $pdo,int $studentId,string $uuid):array{
+    $s=$pdo->prepare("SELECT f.id,f.uuid,f.assignment_id,f.rotation_id,f.date_feedback,f.type_feedback,f.titre,f.commentaire,f.published_at,f.student_seen_at,a.uuid assignment_uuid,r.uuid rotation_uuid,r.sequence_no,hu.nom unit_name,TRIM(CONCAT_WS(' ',u.prenom,u.nom,u.postnom)) author_name,et.nom host_name
+        FROM stage_supervision_feedbacks f JOIN stage_assignments a ON a.id=f.assignment_id JOIN stage_admissions ad ON ad.id=a.admission_id JOIN stage_reservations sr ON sr.id=ad.reservation_id JOIN stage_applications app ON app.id=sr.application_id JOIN student_academic_enrollments ae ON ae.id=app.academic_enrollment_id JOIN student_enrollments se ON se.id=ae.enrollment_id LEFT JOIN stage_rotations r ON r.id=f.rotation_id LEFT JOIN host_units hu ON hu.id=r.host_unit_id LEFT JOIN users u ON u.id=f.created_by_user_id LEFT JOIN etablissements et ON et.id=a.host_etablissement_id WHERE se.student_id=? AND f.uuid=? AND f.actif=1 AND f.statut='PUBLIE' AND f.visible_stagiaire=1 LIMIT 1");
+    $s->execute([$studentId,$uuid]);$row=$s->fetch(PDO::FETCH_ASSOC);if(!$row)throw new OutOfBoundsException('Feedback introuvable.');
+    if($row['student_seen_at']===null){
+        $u=$pdo->prepare('UPDATE stage_supervision_feedbacks SET student_seen_at=NOW() WHERE id=? AND student_seen_at IS NULL');$u->execute([(int)$row['id']]);
+        $u=$pdo->prepare('SELECT student_seen_at FROM stage_supervision_feedbacks WHERE id=?');$u->execute([(int)$row['id']]);$row['student_seen_at']=$u->fetchColumn()?:null;
+    }
+    return feedbackStudentItem($row);
 }
 }
 try{feedbackEnsureSchema($pdo);}catch(Throwable $e){error_log('[STAGE FEEDBACK SCHEMA] '.$e->getMessage());}

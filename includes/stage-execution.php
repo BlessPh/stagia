@@ -323,6 +323,7 @@ function stageExecutionCurrentRotation(
     $s=$pdo->prepare("
         SELECT
             r.id rotation_id,
+            r.uuid rotation_uuid,
             r.assignment_id,
             r.sequence_no,
             r.date_debut,
@@ -336,6 +337,11 @@ function stageExecutionCurrentRotation(
             u.nom unit_name,
             u.type unit_type,
 
+            parent.id parent_unit_id,
+            parent.code parent_unit_code,
+            parent.nom parent_unit_name,
+            parent.type parent_unit_type,
+
             su.id supervisor_user_id,
             CONCAT_WS(' ',su.prenom,su.nom,su.postnom) supervisor_name,
             COALESCE(NULLIF(eu.fonction,''),'Encadreur') supervisor_function
@@ -343,6 +349,8 @@ function stageExecutionCurrentRotation(
         FROM stage_rotations r
 
         JOIN host_units u ON u.id=r.host_unit_id
+
+        LEFT JOIN host_units parent ON parent.id=u.parent_id
 
         LEFT JOIN stage_rotation_supervisors rs
           ON rs.id=(
@@ -385,6 +393,7 @@ function stageExecutionNextRotation(
     $s=$pdo->prepare("
         SELECT
             r.id rotation_id,
+            r.uuid rotation_uuid,
             r.sequence_no,
             r.date_debut,
             r.date_fin,
@@ -392,8 +401,13 @@ function stageExecutionNextRotation(
             u.code unit_code,
             u.nom unit_name,
             u.type unit_type
+            ,parent.id parent_unit_id
+            ,parent.code parent_unit_code
+            ,parent.nom parent_unit_name
+            ,parent.type parent_unit_type
         FROM stage_rotations r
         JOIN host_units u ON u.id=r.host_unit_id
+        LEFT JOIN host_units parent ON parent.id=u.parent_id
         WHERE r.assignment_id=?
           AND r.statut='PLANIFIEE'
           AND r.date_debut>?

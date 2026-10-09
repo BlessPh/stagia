@@ -11,6 +11,37 @@ $studentId=(int)$student['student_id'];
 $assignmentUuid=
     trim($_GET['assignment_uuid']??'');
 
+$rotationUuid=trim((string)($_GET['rotation_uuid']??''));
+$allowedStatuses=['PRESENT','RETARD','ABSENT','JUSTIFIE','GARDE'];
+$rawStatuses=$_GET['status']??$_GET['statuses']??[];
+$statusFilter=is_array($rawStatuses)?$rawStatuses:explode(',',(string)$rawStatuses);
+$statusFilter=array_values(array_unique(array_filter(array_map(
+    static fn($status):string=>strtoupper(trim((string)$status)),
+    $statusFilter
+))));
+$invalidStatuses=array_values(array_diff($statusFilter,$allowedStatuses));
+if($invalidStatuses){
+    apiResponse(false,'Filtre status invalide : '.implode(', ',$invalidStatuses).'.',[
+        'allowed_values'=>$allowedStatuses
+    ],422);
+}
+
+$dateFrom=trim((string)($_GET['date_from']??''));
+$dateTo=trim((string)($_GET['date_to']??''));
+$validDate=static function(string $value):bool{
+    if($value==='')return true;
+    $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value);
+    return $date!==false&&$date->format('Y-m-d')===$value;
+};
+if(!$validDate($dateFrom))apiResponse(false,'Filtre date_from invalide. Format attendu : YYYY-MM-DD.',[],422);
+if(!$validDate($dateTo))apiResponse(false,'Filtre date_to invalide. Format attendu : YYYY-MM-DD.',[],422);
+if($dateFrom!==''&&$dateTo!==''&&$dateFrom>$dateTo){
+    apiResponse(false,'La date de début ne peut pas être postérieure à la date de fin.',[],422);
+}
+
+$page=max(1,(int)($_GET['page']??1));
+$perPage=max(1,min(100,(int)($_GET['per_page']??20)));
+
 
 try{
 
@@ -37,8 +68,13 @@ try{
             rot.uuid AS rotation_uuid,
             rot.sequence_no AS rotation_sequence,
 
+            hu.id AS unit_id,
             hu.code AS unit_code,
-            hu.nom AS unit_name
+            hu.nom AS unit_name,
+            hu.type AS unit_type,
+
+            validator.id AS validator_id,
+            TRIM(CONCAT_WS(' ',validator.prenom,validator.nom,validator.postnom)) AS validator_name
 
         FROM stage_attendances att
 
@@ -72,6 +108,9 @@ try{
         LEFT JOIN host_units hu
             ON hu.id=rot.host_unit_id
 
+        LEFT JOIN users validator
+            ON validator.id=att.validated_by
+
         WHERE se.student_id=?
     ";
 
@@ -93,6 +132,26 @@ try{
 
         $params[]=
             $assignmentUuid;
+    }
+
+    if($rotationUuid!==''){
+        $sql.=" AND rot.uuid=?";
+        $params[]=$rotationUuid;
+    }
+
+    if($statusFilter){
+        $sql.=' AND att.statut IN('.implode(',',array_fill(0,count($statusFilter),'?')).')';
+        array_push($params,...$statusFilter);
+    }
+
+    if($dateFrom!==''){
+        $sql.=" AND att.date_presence>=?";
+        $params[]=$dateFrom;
+    }
+
+    if($dateTo!==''){
+        $sql.=" AND att.date_presence<=?";
+        $params[]=$dateTo;
     }
 
 
@@ -134,7 +193,13 @@ try{
 
         'effective_presence'=>0,
 
-        'attendance_rate'=>0
+        'attendance_rate'=>0,
+
+        'minutes_late'=>0,
+
+        'total_duration_minutes'=>0,
+
+        'validated'=>0
     ];
 
 
@@ -210,12 +275,26 @@ try{
             ??
             null;
 
+        $minutesLate=max(0,(int)($row['minutes_retard']??0));
+        $durationMinutes=null;
+        if($arrival&&$departure){
+            $arrivalTime=DateTimeImmutable::createFromFormat('!H:i:s',(string)$arrival);
+            $departureTime=DateTimeImmutable::createFromFormat('!H:i:s',(string)$departure);
+            if($arrivalTime&&$departureTime){
+                $durationMinutes=(int)(($departureTime->getTimestamp()-$arrivalTime->getTimestamp())/60);
+                if($durationMinutes<0)$durationMinutes+=1440;
+            }
+        }
+
 
         /* =================================================
            STATISTIQUES
         ================================================= */
 
         $stats['total']++;
+        $stats['minutes_late']+=$minutesLate;
+        if($durationMinutes!==null)$stats['total_duration_minutes']+=$durationMinutes;
+        if(!empty($row['validated_at']))$stats['validated']++;
 
 
         switch($status){
@@ -280,12 +359,27 @@ try{
 
             'source'=>$source,
 
+            'minutes_late'=>$minutesLate,
+
+            'duration_minutes'=>$durationMinutes,
+
+            'justification'=>$row['justification']??null,
+
             'observation'=>$observation,
 
-            'rotation'=>[
+            'validated'=>!empty($row['validated_at']),
+
+            'validated_at'=>$row['validated_at']??null,
+
+            'validator'=>!empty($row['validator_id'])?[
+                'user_id'=>(int)$row['validator_id'],
+                'name'=>$row['validator_name']
+            ]:null,
+
+            'rotation'=>$row['rotation_uuid']!==null?[
                 'uuid'=>$row['rotation_uuid'],
                 'sequence'=>(int)$row['rotation_sequence']
-            ],
+            ]:null,
 
 
             'assignment'=>[
@@ -327,15 +421,17 @@ try{
             ],
 
 
-            'unit'=>[
+            'unit'=>$row['unit_id']!==null?[
 
-                'code'=>
-                    $row['unit_code'],
+                'id'=>(int)$row['unit_id'],
 
-                'name'=>
-                    $row['unit_name']
+                'code'=>$row['unit_code'],
 
-            ]
+                'name'=>$row['unit_name'],
+
+                'type'=>$row['unit_type']
+
+            ]:null
 
         ];
     }
@@ -364,14 +460,42 @@ try{
        RÉPONSE
     ====================================================== */
 
+    $total=count($items);
+    $pages=max(1,(int)ceil($total/$perPage));
+    if($page>$pages)$page=$pages;
+    $offset=($page-1)*$perPage;
+    $pageItems=array_slice($items,$offset,$perPage);
+
     apiResponse(
         true,
         '',
         [
 
-            'items'=>$items,
+            'items'=>$pageItems,
 
-            'stats'=>$stats
+            'stats'=>$stats,
+
+            'pagination'=>[
+                'page'=>$page,
+                'per_page'=>$perPage,
+                'total'=>$total,
+                'pages'=>$pages,
+                'from'=>$total?$offset+1:0,
+                'to'=>$total?$offset+count($pageItems):0
+            ],
+
+            'filters'=>[
+                'assignment_uuid'=>$assignmentUuid?:null,
+                'rotation_uuid'=>$rotationUuid?:null,
+                'statuses'=>$statusFilter,
+                'date_from'=>$dateFrom?:null,
+                'date_to'=>$dateTo?:null
+            ],
+
+            'available_filters'=>[
+                'statuses'=>$allowedStatuses,
+                'per_page_max'=>100
+            ]
 
         ]
     );

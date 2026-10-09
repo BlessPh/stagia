@@ -2,6 +2,7 @@
 
 require_once __DIR__.'/../api-auth.php';
 require_once __DIR__.'/../../../includes/stage-execution.php';
+require_once __DIR__.'/../../../includes/student-logbook-api.php';
 
 requireApiMethod('POST');
 
@@ -1015,19 +1016,15 @@ try{
        COMMIT
     ====================================================== */
 
+    $entry=studentLogbookApiEntry($pdo,$studentId,$entryUuid);
+
     $pdo->commit();
 
 
     apiResponse(
         true,
         'Journal enregistré en brouillon.',
-        [
-            'uuid'=>$entryUuid,
-            'status'=>'BROUILLON',
-            'date'=>$date,
-            'activities_count'=>
-                count($activities)
-        ]
+        ['entry'=>$entry]
     );
 
 

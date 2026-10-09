@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__.'/../api-auth.php';
+require_once __DIR__.'/../../../includes/student-logbook-api.php';
 
 requireApiMethod('POST');
 
@@ -241,14 +242,13 @@ try{
 
         $pdo->commit();
 
+        $publicEntry=studentLogbookApiEntry($pdo,$studentId,$uuid);
+
 
         apiResponse(
             true,
             'Journal déjà soumis.',
-            [
-                'uuid'=>$uuid,
-                'status'=>'SOUMIS'
-            ]
+            ['entry'=>$publicEntry]
         );
     }
 
@@ -261,14 +261,13 @@ try{
 
         $pdo->commit();
 
+        $publicEntry=studentLogbookApiEntry($pdo,$studentId,$uuid);
+
 
         apiResponse(
             true,
             'Journal déjà validé.',
-            [
-                'uuid'=>$uuid,
-                'status'=>'VALIDE'
-            ]
+            ['entry'=>$publicEntry]
         );
     }
 
@@ -421,19 +420,15 @@ try{
        COMMIT
     ====================================================== */
 
+    $publicEntry=studentLogbookApiEntry($pdo,$studentId,$uuid);
+
     $pdo->commit();
 
 
     apiResponse(
         true,
         'Journal soumis pour validation.',
-        [
-            'uuid'=>$uuid,
-            'status'=>'SOUMIS',
-            'activities_count'=>$activitiesCount,
-            'assignment_uuid'=>
-                $entry['assignment_uuid']
-        ]
+        ['entry'=>$publicEntry]
     );
 
 
