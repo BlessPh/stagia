@@ -15,6 +15,7 @@ require_once __DIR__.'/../../includes/auth.php';
 require_once __DIR__.'/../../includes/permissions.php';
 require_once __DIR__.'/../../includes/document-branding.php';
 require_once __DIR__.'/../../includes/document-stage-data.php';
+require_once __DIR__.'/../../includes/stage-letter-service.php';
 
 /* Seuls les rôles habilités à consulter les documents de stage peuvent ouvrir cette vue. */
 requireRole(['ADMIN_ETABLISSEMENT','RESPONSABLE_PEDAGOGIQUE','ADMIN_ACCUEIL','COORDINATEUR_STAGES']);
@@ -22,9 +23,10 @@ requireRole(['ADMIN_ETABLISSEMENT','RESPONSABLE_PEDAGOGIQUE','ADMIN_ACCUEIL','CO
 /* Lecture et normalisation des paramètres reçus dans l'URL. */
 $type=trim((string)($_GET['type']??'presence'));
 $assignmentId=(int)($_GET['assignment_id']??($_GET['context_id']??0));
+$applicationId=(int)($_GET['application_id']??0);
 
 /* Liste blanche : tout type inconnu revient au modèle de présence. */
-$allowed=['presence','appreciation','recommandation','rapport'];
+$allowed=['presence','appreciation','recommandation','lettre_stage','rapport'];
 if(!in_array($type,$allowed,true))$type='presence';
 
 /* Une recommandation est émise par l'établissement académique uniquement. */
@@ -35,12 +37,46 @@ if($type==='recommandation'&&!$isAcademicDoc){http_response_code(403);exit('Lett
 /* Résolution de l'établissement courant, avec solution de compatibilité pour les anciennes sessions. */
 $eid=(int)(function_exists('currentEtablissementId')?currentEtablissementId($pdo):($_SESSION['etablissement_id']??0));
 
-/* Agrégation des informations du stage : contexte, présences, journal, évaluation et résultat. */
-$data=stagiaDocFullData($pdo,$assignmentId);
-if(!$data){http_response_code(404);exit('Stage introuvable.');}
+/* La lettre est résolue depuis la candidature : aucune affectation n'est requise. */
+if($type==='lettre_stage'){
+    $letter=stageLetterDataByApplication($pdo,$applicationId);
+    if(!$letter){http_response_code(404);exit('Candidature introuvable.');}
+    if(($letter['application_status']??'')!=='ACCEPTEE'){
+        http_response_code(409);
+        exit('La lettre de stage est disponible après acceptation de la candidature.');
+    }
+    if(!stageLetterActorCanView($letter,$eid,$roleUpper)){
+        http_response_code(403);
+        exit('Vous ne pouvez pas consulter cette lettre de stage.');
+    }
 
-/* Raccourcis locaux afin de garder les modèles HTML lisibles. */
-$c=$data['context'];$att=$data['attendance'];$as=$data['attendance_summary'];$logs=$data['logbook_summary'];$ev=$data['evaluation'];$scores=$data['scores'];$result=$data['result'];
+    $c=[
+        'assignment_id'=>0,
+        'application_id'=>(int)$letter['application_id'],
+        'university_id'=>(int)($letter['university_id']??0),
+        'host_id'=>(int)($letter['host_id']??0),
+        'student_name'=>$letter['student_name']??'Étudiant',
+        'matricule'=>$letter['student_code']??'—',
+        'promotion'=>$letter['promotion_name']??'—',
+        'campaign_code'=>$letter['campaign_code']??'',
+        'campaign_title'=>$letter['campaign_title']??'',
+        'period_start'=>$letter['period_start']??null,
+        'period_end'=>$letter['period_end']??null,
+        'stage_type_label'=>'Stage',
+        'host_name'=>$letter['host_name']??'Structure d’accueil',
+        'host_city'=>$letter['host_city']??'',
+        'host_ville'=>$letter['host_city']??'',
+        'unit_name'=>'À déterminer lors de l’affectation'
+    ];
+    $att=[];$as=['total'=>0,'present'=>0,'retard'=>0,'absent'=>0,'presence_rate'=>null];
+    $logs=['total'=>0,'valides'=>0,'soumis'=>0,'rejetes'=>0];
+    $ev=null;$scores=[];$result=null;
+}else{
+    /* Les autres documents restent rattachés à une affectation existante. */
+    $data=stagiaDocFullData($pdo,$assignmentId);
+    if(!$data){http_response_code(404);exit('Stage introuvable.');}
+    $c=$data['context'];$att=$data['attendance'];$as=$data['attendance_summary'];$logs=$data['logbook_summary'];$ev=$data['evaluation'];$scores=$data['scores'];$result=$data['result'];
+}
 
 /* Les scores stockent competency_id, mais l'ancien document n'affichait pas
    le nom réel de la compétence. On enrichit les lignes sans modifier
@@ -97,7 +133,7 @@ if($scores){
    Les autres documents gardent l'établissement connecté / d'accueil comme logo principal. */
 /* L'émetteur est l'université pour une recommandation, sinon l'établissement courant. */
 $issuerEid=$eid;
-if($type==='recommandation' && !empty($c['university_id']))$issuerEid=(int)$c['university_id'];
+if(in_array($type,['recommandation','lettre_stage'],true) && !empty($c['university_id']))$issuerEid=(int)$c['university_id'];
 $brand=stagiaDocumentBrand($pdo,$issuerEid?:$eid);
 /* Chaque libellé dispose d'une valeur par défaut pour éviter un document incomplet. */
 $academicHeader=trim((string)($brand['secretariat_label']??($brand['secretariat']??'')));
@@ -171,7 +207,7 @@ function buildAppreciationGroups(array $scores):array{
 }
 
 /* Correspondance entre le type interne demandé et son intitulé officiel imprimé. */
-$titles=['presence'=>'FICHE DE PRÉSENCE DE L’ÉTUDIANT','appreciation'=>'FICHE D’APPRÉCIATION DU STAGIAIRE','recommandation'=>'LETTRE DE RECOMMANDATION DE STAGE','rapport'=>'RAPPORT / CERTIFICAT FINAL DE STAGE'];
+$titles=['presence'=>'FICHE DE PRÉSENCE DE L’ÉTUDIANT','appreciation'=>'FICHE D’APPRÉCIATION DU STAGIAIRE','recommandation'=>'LETTRE DE RECOMMANDATION DE STAGE','lettre_stage'=>'LETTRE DE STAGE','rapport'=>'RAPPORT / CERTIFICAT FINAL DE STAGE'];
 ?>
 <!doctype html><html lang="fr"><head><meta charset="utf-8"><title><?=h($titles[$type])?></title>
 <!-- Police d'icônes utilisée uniquement pour le bouton d'impression. -->
@@ -196,19 +232,19 @@ $titles=['presence'=>'FICHE DE PRÉSENCE DE L’ÉTUDIANT','appreciation'=>'FICH
     </div>
     <div class="title"><span><?=h($titles[$type])?></span></div>
 
-<?php if($type==='recommandation'): ?>
+<?php if(in_array($type,['recommandation','lettre_stage'],true)): ?>
     <!-- Lettre institutionnelle destinée à la structure d'accueil. -->
     <div class="section">
-        <div class="grid"><div class="field"><b>N/Réf.</b> STG/REC/<?=h($c['assignment_id'])?>/<?=date('Y')?></div><div class="field"><b>Date</b> <?=h(stagiaDocDateLongFr())?></div></div>
-        <p class="letter"><b>Objet : Recommandation de stage</b></p>
+        <div class="grid"><div class="field"><b>N/Réf.</b> <?=h($type==='lettre_stage'?stageLetterReference((int)$c['application_id']):'STG/REC/'.$c['assignment_id'].'/'.date('Y'))?></div><div class="field"><b>Date</b> <?=h(stagiaDocDateLongFr())?></div></div>
+        <p class="letter"><b>Objet : <?=$type==='lettre_stage'?'Lettre de stage':'Recommandation de stage'?></b></p>
         <div class="recipient">
             À Monsieur le Médecin Directeur<br>
             <b><?=h($c['host_name']?:'Structure d’accueil')?></b><br>
             à <?=h($c['host_city']??($c['host_ville']??''))?>
         </div>
         <p class="letter">Monsieur le Médecin Directeur,</p>
-        <p class="letter">Nous avons l’honneur de vous recommander l’étudiant(e) <b><?=h($c['student_name'])?></b>, matricule <b><?=h($c['matricule'])?></b>, régulièrement inscrit(e) en <b><?=h($c['promotion'])?></b>, pour effectuer un stage dans votre établissement.</p>
-        <p class="letter">Ce stage concerne la session <b><?=h($c['campaign_title']?:$c['campaign_code'])?></b>, pour la période allant du <b><?=h(stagiaDocDateFr($c['period_start']))?></b> au <b><?=h(stagiaDocDateFr($c['period_end']))?></b>, au service <b><?=h($c['unit_name']?:'—')?></b>.</p>
+        <p class="letter">Nous avons l’honneur de <?=$type==='lettre_stage'?'vous présenter':'vous recommander'?> l’étudiant(e) <b><?=h($c['student_name'])?></b>, matricule <b><?=h($c['matricule'])?></b>, régulièrement inscrit(e) en <b><?=h($c['promotion'])?></b>, pour effectuer un stage dans votre établissement.</p>
+        <p class="letter">Ce stage concerne la session <b><?=h($c['campaign_title']?:$c['campaign_code'])?></b>, pour la période allant du <b><?=h(stagiaDocDateFr($c['period_start']))?></b> au <b><?=h(stagiaDocDateFr($c['period_end']))?></b><?=($type==='recommandation'&&$c['unit_name'])?', au service <b>'.h($c['unit_name']).'</b>':''?>.</p>
         <p class="letter">Nous vous saurions gré de bien vouloir lui réserver un bon accueil et de lui permettre de bénéficier de l’encadrement nécessaire pour la réussite de ce stage.</p>
         <p class="letter">Veuillez agréer, Monsieur le Médecin Directeur, l’expression de nos sentiments distingués.</p>
     </div>

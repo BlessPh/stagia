@@ -3,7 +3,7 @@
  * Endpoint AJAX d'enregistrement d'une grille d'évaluation par promotion, année et type de stage.
  * Il normalise les critères, crée les compétences locales éventuelles et versionne le référentiel déjà utilisé.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

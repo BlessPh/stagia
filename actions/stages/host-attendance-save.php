@@ -3,7 +3,7 @@
  * Endpoint AJAX de saisie et de validation des présences de stage.
  * Il retourne exclusivement des réponses JSON via le helper AJAX commun.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 /* Connexion, format de réponse et contrôles d'autorisation centralisés. */
 require_once __DIR__.'/../../config/database.php';

@@ -3,7 +3,7 @@
  * Endpoint AJAX de préparation de l'écran d'administration des grilles d'évaluation.
  * Il adapte ses lectures au schéma disponible et retourne promotions, référentiels, compétences et configurations.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

@@ -50,6 +50,20 @@ try{
             comp.note_finale,
             comp.validated_at,
 
+            fd.statut AS deliberation_status,
+            fd.note_finale AS deliberation_score,
+            fd.decision AS final_decision,
+            fd.date_deliberation,
+
+            (
+                SELECT rt.statut
+                FROM stage_result_items ri
+                INNER JOIN stage_result_transmissions rt ON rt.id=ri.transmission_id
+                WHERE ri.assignment_id=a.id
+                ORDER BY rt.id DESC,ri.id DESC
+                LIMIT 1
+            ) AS university_result_status,
+
             cert.id AS certificate_id,
             cert.uuid AS certificate_uuid,
             cert.reference AS certificate_reference,
@@ -88,8 +102,22 @@ try{
         LEFT JOIN stage_completions comp
             ON comp.assignment_id=a.id
 
+        LEFT JOIN stage_final_deliberations fd
+            ON fd.assignment_id=a.id
+           AND fd.statut='VALIDEE'
+
         LEFT JOIN stage_certificates cert
             ON cert.completion_id=comp.id
+           AND cert.statut='GENERE'
+           AND comp.statut='VALIDE'
+           AND EXISTS(
+               SELECT 1
+               FROM stage_result_items ri
+               INNER JOIN stage_result_transmissions rt
+                   ON rt.id=ri.transmission_id
+               WHERE ri.assignment_id=a.id
+                 AND rt.statut IN('VALIDE','ARCHIVE')
+           )
 
         WHERE sp.user_id=?
           AND a.statut<>'ANNULEE'
@@ -131,10 +159,26 @@ try{
                 ?(float)$x['taux_presence']
                 :null;
 
+        $completionScore=$x['note_finale'];
+        $universityValidated=in_array($x['university_result_status'],['VALIDE','ARCHIVE'],true);
+        $legacyResult=
+            $x['completion_status']==='VALIDE'
+            &&empty($x['deliberation_status'])
+            &&$universityValidated;
+        $officialResult=
+            $universityValidated
+            &&($x['deliberation_status']==='VALIDEE'||$legacyResult);
+
         $x['note_finale']=
-            $x['note_finale']!==null
-                ?(float)$x['note_finale']
+            $officialResult
+                ?($x['deliberation_status']==='VALIDEE'&&$x['deliberation_score']!==null
+                    ?(float)$x['deliberation_score']
+                    :($completionScore!==null?(float)$completionScore:null))
                 :null;
+
+        $x['result_available']=$officialResult;
+        $x['result_source']=$x['deliberation_status']==='VALIDEE'?'FINAL_DELIBERATION':($legacyResult?'LEGACY_CLOSURE':null);
+        unset($x['deliberation_score']);
     }
 
     unset($x);

@@ -48,6 +48,19 @@ RewriteCond %{REQUEST_METHOD} ^POST$
 RewriteRule ^student/feedbacks/([A-Fa-f0-9-]+)/read/?$ student/feedback-read.php?uuid=$1 [L,QSA]
 RewriteRule ^student/feedbacks/?$ student/feedbacks.php [L,QSA]
 RewriteRule ^student/evaluations/?$ student/evaluations.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^GET$
+RewriteRule ^student/completions/?$ student/completions.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^GET$
+RewriteRule ^student/results/?$ student/results.php [L,QSA]
+RewriteRule ^student/stage-reports/([A-Fa-f0-9-]+)/file/?$ student/stage-report-file.php?uuid=$1 [L,QSA]
+RewriteRule ^student/stage-reports/([A-Fa-f0-9-]+)/?$ student/stage-report-detail.php?uuid=$1 [L,QSA]
+RewriteRule ^student/stage-reports/?$ student/stage-reports.php [L,QSA]
+RewriteRule ^student/stage-justifications/([A-Fa-f0-9-]+)/file/?$ student/stage-justification-file.php?uuid=$1 [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/stage-justifications/([A-Fa-f0-9-]+)/read/?$ student/stage-justification-read.php?uuid=$1 [L,QSA]
+RewriteRule ^student/stage-justifications/?$ student/stage-justifications.php [L,QSA]
+RewriteCond %{REQUEST_METHOD} ^POST$
+RewriteRule ^student/account/deactivate/?$ student/account-deactivate.php [L,QSA]
 
 # Dossier academique et documentaire
 RewriteRule ^student/profile/?$ student/profile.php [L,QSA]

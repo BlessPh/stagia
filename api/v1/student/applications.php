@@ -92,7 +92,7 @@ try{
             'cancellation_reason'=>$item['placement_cancellation_reason']
         ]:null;
         $item['taux_presence']=$item['taux_presence']!==null?(float)$item['taux_presence']:null;
-        $item['note_finale']=$item['note_finale']!==null?(float)$item['note_finale']:null;
+        $item['note_finale']=$item['completion_status']==='VALIDE'&&$item['note_finale']!==null?(float)$item['note_finale']:null;
         $bucket=[
             'BROUILLON'=>'draft','SOUMISE'=>'submitted','EN_ETUDE'=>'under_review','ACCEPTEE'=>'accepted',
             'REFUSEE'=>'rejected','ANNULEE'=>'cancelled'

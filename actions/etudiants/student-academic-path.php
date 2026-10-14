@@ -11,6 +11,7 @@ function respond(
     array $data=[],
     int $status=200
 ){
+    if(!$success&&function_exists('appPublicErrorMessage'))$message=appPublicErrorMessage($message);
     http_response_code($status);
 
     if(ob_get_length()){
@@ -27,9 +28,7 @@ function respond(
 }
 
 
-if(session_status()!==PHP_SESSION_ACTIVE){
-    session_start();
-}
+require_once __DIR__.'/../../includes/session-security.php';
 
 
 require_once __DIR__.'/../../config/database.php';

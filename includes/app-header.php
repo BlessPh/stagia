@@ -208,15 +208,14 @@ if(($notificationEid=(int)($_SESSION['etablissement_id']??0))>0){
             try{
                 $s=$pdo->prepare("
                     SELECT COUNT(DISTINCT c.id)
-                    FROM stage_evaluations ev
-                    JOIN stage_rotations r ON r.id=ev.rotation_id
-                    JOIN stage_assignments a ON a.id=r.assignment_id
+                    FROM stage_final_deliberations fd
+                    JOIN stage_assignments a ON a.id=fd.assignment_id
                     JOIN stage_admissions ad ON ad.id=a.admission_id
                     JOIN stage_reservations sr ON sr.id=ad.reservation_id
                     JOIN stage_applications app ON app.id=sr.application_id
                     JOIN stage_campaigns c ON c.id=app.campaign_id
-                    WHERE r.host_etablissement_id=?
-                      AND ev.statut IN('VALIDEE','FINALISEE')
+                    WHERE a.host_etablissement_id=?
+                      AND fd.statut='VALIDEE'
                       AND NOT EXISTS(
                           SELECT 1
                           FROM stage_result_transmissions t
@@ -235,17 +234,16 @@ if(($notificationEid=(int)($_SESSION['etablissement_id']??0))>0){
                                CONCAT(c.code,' — ',c.titre) subtitle,
                                CONCAT('À transmettre à ',COALESCE(u.nom,'Université')) meta,
                                '".BASE_URL."/views/espace-hopital/resultats-stage.php' href,
-                               MAX(COALESCE(ev.validated_at,ev.finalized_at,ev.updated_at,ev.created_at)) notification_at
-                        FROM stage_evaluations ev
-                        JOIN stage_rotations r ON r.id=ev.rotation_id
-                        JOIN stage_assignments a ON a.id=r.assignment_id
+                               MAX(COALESCE(fd.validated_at,fd.updated_at,fd.created_at)) notification_at
+                        FROM stage_final_deliberations fd
+                        JOIN stage_assignments a ON a.id=fd.assignment_id
                         JOIN stage_admissions ad ON ad.id=a.admission_id
                         JOIN stage_reservations sr ON sr.id=ad.reservation_id
                         JOIN stage_applications app ON app.id=sr.application_id
                         JOIN stage_campaigns c ON c.id=app.campaign_id
                         LEFT JOIN etablissements u ON u.id=c.owner_etablissement_id
-                        WHERE r.host_etablissement_id=?
-                          AND ev.statut IN('VALIDEE','FINALISEE')
+                        WHERE a.host_etablissement_id=?
+                          AND fd.statut='VALIDEE'
                           AND NOT EXISTS(
                               SELECT 1
                               FROM stage_result_transmissions t
@@ -500,6 +498,7 @@ $stagePages=[
     'stages-d4-placements',
     'stages-demandes',
     'stages-candidatures',
+    'stage-justifications',
     'university-results',
     'stages-affectations',
     'stages-suivi',
@@ -536,6 +535,8 @@ $hostSuiviPages=[
     'hospital-tasks',
     'hospital-feedbacks',
     'hopital-evaluations',
+    'hospital-mini-juries',
+    'hospital-final-deliberations',
     'hospital-results'
 ];
 
@@ -563,6 +564,7 @@ $studentStagePages=[
     'student-applications',
     'student-reservations',
     'student-internships',
+    'student-justifications',
     'student-logbook',
     'my-payments'
 ];
@@ -594,11 +596,15 @@ function stagiaNav(
         'hospital-tasks',
         'hospital-feedbacks',
         'hopital-evaluations',
+        'hospital-mini-juries',
+        'hospital-final-deliberations',
         'hospital-results',
         'stages-d4-partenaires',
         'stages-candidatures',
         'university-results',
-        'student-stages'
+        'stage-justifications',
+        'student-stages',
+        'student-justifications'
     ];
 
     $live=in_array($page,$livePages,true);
@@ -1082,6 +1088,12 @@ if($isStudent){
                 'student-internships'
             ],
             [
+                BASE_URL.'/views/espace-etudiant/justifications-stage.php',
+                'bi-file-earmark-check',
+                'Mes justifications',
+                'student-justifications'
+            ],
+            [
                 BASE_URL.'/views/espace-etudiant/journal-stage.php',
                 'bi-journal-medical',
                 'Mon journal de stage',
@@ -1556,7 +1568,25 @@ if($host && !$academic){
         ];
     }
 
-    /* Clôture des stages : réservé administration / coordination. */
+    if(!$hPoint&&($hChef||$hAdmin||$hCoord||$hAuthority)){
+        $suiviItems[]=[
+            BASE_URL.'/views/espace-hopital/mini-jurys.php',
+            'bi-people-fill',
+            'Mini-jurys',
+            'hospital-mini-juries'
+        ];
+    }
+
+    if(!$hPoint&&($hAdmin||$hCoord||$hAuthority)){
+        $suiviItems[]=[
+            BASE_URL.'/views/espace-hopital/deliberations-finales.php',
+            'bi-person-check-fill',
+            'Délibérations finales',
+            'hospital-final-deliberations'
+        ];
+    }
+
+    /* Transmission des résultats après la délibération finale. */
     if(($hAdmin||$hCoord)&&contextPermission('stage.manage'))
     $suiviItems[]=[
         BASE_URL.'/views/espace-hopital/resultats-stage.php',
@@ -1861,6 +1891,13 @@ if(
         ];
 
         $operationStageItems[]=[
+            BASE_URL.'/views/stages/justifications.php',
+            'bi-file-earmark-check',
+            'Justifications de stage',
+            'stage-justifications'
+        ];
+
+        $operationStageItems[]=[
             BASE_URL.'/views/stages/suivi.php',
             'bi-clipboard-check',
             'Suivi académique',
@@ -1988,6 +2025,28 @@ if(!$isMaitreStageLike && contextPermission('stage.manage'))
             'bi-clipboard-check',
             'Évaluations',
             'hopital-evaluations'
+        ];
+
+    if(
+        !$isMaitreStageLike &&
+        in_array($roleUpper,['ADMIN_ACCUEIL','COORDINATEUR_STAGES','AUTORITE_HOSPITALIERE','CHEF_SERVICE'],true)
+    )
+        $suiviItems[]=[
+            BASE_URL.'/views/espace-hopital/mini-jurys.php',
+            'bi-people-fill',
+            'Mini-jurys',
+            'hospital-mini-juries'
+        ];
+
+    if(
+        !$isMaitreStageLike &&
+        in_array($roleUpper,['ADMIN_ACCUEIL','COORDINATEUR_STAGES','AUTORITE_HOSPITALIERE'],true)
+    )
+        $suiviItems[]=[
+            BASE_URL.'/views/espace-hopital/deliberations-finales.php',
+            'bi-person-check-fill',
+            'Délibérations finales',
+            'hospital-final-deliberations'
         ];
 
     if(!$isMaitreStageLike && contextPermission('stage.manage'))
@@ -2355,13 +2414,17 @@ document.addEventListener('DOMContentLoaded',()=>{
             badge('hospital-tasks',Number(d.task_count||0));
             badge('hospital-feedbacks',Number(d.feedback_count||0));
             badge('hopital-evaluations',Number(d.evaluation_count||d.chef_evaluation_count||d.encadreur_evaluation_count||0));
+            badge('hospital-mini-juries',Number(d.mini_jury_ready_count||0));
+            badge('hospital-final-deliberations',Number(d.final_deliberation_ready_count||0));
             badge('hospital-results',Number(d.host_result_ready_count||0));
             if(Object.prototype.hasOwnProperty.call(d,'encadreur_rotations_count'))
                 badge('encadreur-mes-rotations',Number(d.encadreur_rotations_count||0));
             badge('stages-d4-partenaires',Number(d.academic_count||0));
             badge('stages-candidatures',Number(d.application_count||0));
             badge('university-results',Number(d.university_result_count||0));
+            badge('stage-justifications',Number(d.university_justification_count||0));
             badge('student-stages',Number(d.student_offer_count||0));
+            badge('student-justifications',Number(d.student_justification_count||0));
             footer.href=d.primary_href||'#';
 
             items.innerHTML=list.length?list.map(n=>`

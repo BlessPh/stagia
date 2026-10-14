@@ -107,17 +107,25 @@ try{
     /* L'attestation est recherchée seulement après l'identification d'une clôture. */
     $certStmt=$pdo->prepare("
         SELECT
-            id,
-            uuid,
-            reference,
-            type_document,
-            statut,
-            fichier,
-            generated_at
-        FROM stage_certificates
-        WHERE completion_id=?
-          AND statut='GENERE'
-        ORDER BY id DESC
+            cert.id,
+            cert.uuid,
+            cert.reference,
+            cert.type_document,
+            cert.statut,
+            cert.fichier,
+            cert.generated_at
+        FROM stage_certificates cert
+        INNER JOIN stage_completions comp ON comp.id=cert.completion_id
+        WHERE cert.completion_id=?
+          AND cert.statut='GENERE'
+          AND EXISTS(
+              SELECT 1
+              FROM stage_result_items ri
+              INNER JOIN stage_result_transmissions t ON t.id=ri.transmission_id
+              WHERE ri.assignment_id=comp.assignment_id
+                AND t.statut IN('VALIDE','ARCHIVE')
+          )
+        ORDER BY cert.id DESC
         LIMIT 1
     ");
 

@@ -3,8 +3,7 @@
  * Endpoint AJAX de transition d'état d'une campagne d'accueil.
  * La machine à états protège notamment l'ouverture sans capacité ou sans université acceptée.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)
-    session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

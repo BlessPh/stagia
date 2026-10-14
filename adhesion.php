@@ -7,7 +7,7 @@
  */
 
 /* La session conserve le jeton CSRF et les éventuelles erreurs après redirection. */
-if(session_status()!==PHP_SESSION_ACTIVE) session_start();
+require_once __DIR__.'/includes/session-security.php';
 
 /* Configuration, connexion PDO et liste de référence des provinces. */
 require_once __DIR__.'/config/config.php';

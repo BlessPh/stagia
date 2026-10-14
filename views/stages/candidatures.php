@@ -154,7 +154,9 @@ function openDecision(id,decision){
     $('decisionFee').innerHTML=fee?`<span class="text-warning-emphasis"><i class="bi bi-credit-card me-1"></i>Stage payant : <strong>${money(x.montant_frais)} ${STAGIA.escape(x.devise||'USD')}</strong></span>`:'<span class="text-success"><i class="bi bi-check-circle me-1"></i>Stage gratuit</span>';
     const accept=decision==='ACCEPTEE';
     $('acceptInfo').classList.toggle('d-none',!accept);$('refuseBox').classList.toggle('d-none',accept);
-    $('acceptText').textContent=fee?'Après acceptation, la lettre de stage sera envoyée à l’hôpital. Le paiement bloquera seulement l’affectation au service.':'La place sera confirmée, publiée côté hôpital et la lettre de stage sera envoyée.';
+    $('acceptText').textContent=fee
+        ?'Après acceptation, la lettre de stage sera disponible. Le paiement restera obligatoire avant le placement universitaire et l’affectation.'
+        :'Après acceptation, la lettre de stage sera disponible et la réservation sera confirmée avant le placement universitaire.';
     $('decisionBtn').className='btn '+(accept?'btn-success':'btn-danger');
     $('decisionBtn').innerHTML=accept?'<i class="bi bi-check-lg me-1"></i>Accepter':'<i class="bi bi-x-lg me-1"></i>Refuser';
     modal.show();

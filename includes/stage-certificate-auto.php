@@ -71,15 +71,16 @@ if(!function_exists('stageCertReference')){
 
 if(!function_exists('stageEnsureCertificatesFromValidatedResults')){
     /** Crée les attestations manquantes à partir des résultats déjà validés. */
-    function stageEnsureCertificatesFromValidatedResults(PDO $pdo,int $studentId=0):int{
+    function stageEnsureCertificatesFromValidatedResults(PDO $pdo,int $studentId=0,bool $ensureSchema=true,int $transmissionId=0):int{
         if(!stagiaCertTableExists($pdo,'stage_result_transmissions')||!stagiaCertTableExists($pdo,'stage_result_items'))return 0;
-        stageEnsureCertificateSchema($pdo);
+        if($ensureSchema)stageEnsureCertificateSchema($pdo);
         if(!stagiaCertTableExists($pdo,'stage_completions'))return 0;
 
-        $where=$studentId>0?' AND i.student_id=?':'';
-        $p=$studentId>0?[$studentId]:[];
+        $where='';$p=[];
+        if($studentId>0){$where.=' AND i.student_id=?';$p[]=$studentId;}
+        if($transmissionId>0){$where.=' AND t.id=?';$p[]=$transmissionId;}
         $s=$pdo->prepare("
-            SELECT t.id transmission_id,t.campaign_id,t.host_etablissement_id,t.university_etablissement_id,
+            SELECT t.id transmission_id,t.campaign_id,t.host_etablissement_id,t.university_etablissement_id,t.validated_by,
                    COALESCE(t.validated_at,t.archived_at,t.updated_at,t.created_at,NOW()) validated_at,
                    i.assignment_id,i.student_id,i.final_score,i.presence_rate
             FROM stage_result_transmissions t
@@ -95,35 +96,15 @@ if(!function_exists('stageEnsureCertificatesFromValidatedResults')){
             $sid=(int)$r['student_id'];
             if(!$assignmentId||!$sid)continue;
 
-            $q=$pdo->prepare("SELECT id FROM stage_completions WHERE assignment_id=? LIMIT 1");
+            $q=$pdo->prepare("SELECT id,statut FROM stage_completions WHERE assignment_id=? LIMIT 1");
             $q->execute([$assignmentId]);
-            $completionId=(int)$q->fetchColumn();
-
-            $score=$r['final_score']!==null?(float)$r['final_score']:null;
-            $note=$score===null?null:($score>20?round($score/5,2):round($score,2));
-            $presence=$r['presence_rate']!==null?(float)$r['presence_rate']:null;
-
-            if(!$completionId){
-                $completionId=stageCertInsertSmart($pdo,'stage_completions',[
-                    'uuid'=>stagiaCertUuid(),
-                    'assignment_id'=>$assignmentId,
-                    'student_id'=>$sid,
-                    'campaign_id'=>(int)$r['campaign_id'],
-                    'statut'=>'VALIDE',
-                    'note_finale'=>$note,
-                    'taux_presence'=>$presence,
-                    'validated_at'=>$r['validated_at'],
-                    'created_at'=>date('Y-m-d H:i:s'),
-                    'updated_at'=>date('Y-m-d H:i:s')
-                ]);
-            }else{
-                $sets=[];$params=[];
-                foreach(['statut'=>'VALIDE','note_finale'=>$note,'taux_presence'=>$presence,'validated_at'=>$r['validated_at'],'updated_at'=>date('Y-m-d H:i:s')] as $c=>$v){
-                    if(stagiaCertColumnExists($pdo,'stage_completions',$c)){$sets[]="$c=?";$params[]=$v;}
-                }
-                if($sets){$params[]=$completionId;$u=$pdo->prepare("UPDATE stage_completions SET ".implode(',',$sets)." WHERE id=?");$u->execute($params);}
+            $completion=$q->fetch(PDO::FETCH_ASSOC);
+            if(!$completion||$completion['statut']!=='VALIDE'){
+                /* Dans le nouveau workflow, l'université valide avant la clôture hospitalière.
+                   L'attestation sera donc créée lors de cette clôture définitive. */
+                continue;
             }
-            if(!$completionId)continue;
+            $completionId=(int)$completion['id'];
 
             $q=$pdo->prepare("SELECT id FROM stage_certificates WHERE completion_id=? AND type_document='ATTESTATION_STAGE' AND statut<>'ANNULE' LIMIT 1");
             $q->execute([$completionId]);
@@ -137,6 +118,7 @@ if(!function_exists('stageEnsureCertificatesFromValidatedResults')){
                 'student_id'=>$sid,
                 'completion_id'=>$completionId,
                 'host_etablissement_id'=>(int)$r['host_etablissement_id'],
+                'generated_by'=>(int)($r['validated_by']??0)?:null,
                 'generated_at'=>date('Y-m-d H:i:s'),
                 'created_at'=>date('Y-m-d H:i:s')
             ]);

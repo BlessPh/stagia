@@ -141,6 +141,9 @@ try{
 
             rot.uuid AS rotation_uuid,
             rot.sequence_no AS rotation_sequence,
+            rot.statut AS rotation_status,
+            rot.date_debut AS rotation_start,
+            rot.date_fin AS rotation_end,
 
             hu.code AS unit_code,
             hu.nom AS unit_name
@@ -553,7 +556,13 @@ try{
 
 
         $canSubmit=
-            $status==='BROUILLON';
+            $status==='BROUILLON' &&
+            stageLogbookRotationDateIsValid(
+                (string)$date,
+                $row['rotation_start']??null,
+                $row['rotation_end']??null,
+                $row['rotation_status']??null
+            );
 
 
         /* =================================================
@@ -594,7 +603,12 @@ try{
 
             'rotation'=>[
                 'uuid'=>$row['rotation_uuid'],
-                'sequence'=>(int)$row['rotation_sequence']
+                'sequence'=>(int)$row['rotation_sequence'],
+                'status'=>$row['rotation_status'],
+                'period'=>[
+                    'start_date'=>$row['rotation_start'],
+                    'end_date'=>$row['rotation_end']
+                ]
             ],
 
 

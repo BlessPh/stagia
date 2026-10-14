@@ -42,11 +42,12 @@ try{
     ob_clean();
     echo json_encode(['success'=>true,'message'=>'','data'=>['items'=>$items,'kpi'=>$kpi]],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 }catch(Throwable $e){
-    $debug=ob_get_clean();
+    ob_get_clean();
+    error_log('[DOCUMENT ARCHIVE LIST] '.$e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success'=>false,
-        'message'=>'Erreur archives documents : '.$e->getMessage(),
-        'data'=>['debug'=>trim(strip_tags($debug))]
+        'message'=>appPublicErrorMessage('Erreur archives documents : '.$e->getMessage()),
+        'data'=>[]
     ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 }

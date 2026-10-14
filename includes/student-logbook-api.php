@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__.'/stage-logbook-rules.php';
+
 function studentLogbookApiColumns(PDO $pdo,string $table):array{
     static $cache=[];
     if(isset($cache[$table]))return $cache[$table];
@@ -64,6 +66,12 @@ function studentLogbookApiEntry(PDO $pdo,int $studentId,string $uuid):array{
         }
     }
     $status=studentLogbookApiStatus((string)studentLogbookApiPick($row,['statut','status'],'BROUILLON'));
+    $canSubmit=$status==='BROUILLON' && stageLogbookRotationDateIsValid(
+        (string)studentLogbookApiPick($row,['date_journal','date_journee','entry_date','date_activite','date_stage','date'],''),
+        $row['rotation_start']??null,
+        $row['rotation_end']??null,
+        $row['rotation_status']??null
+    );
     $targetType=strtoupper((string)($row['target_type']??''));$isUnit=in_array($targetType,['UNITE','UNIT'],true);
     return [
         'uuid'=>studentLogbookApiPick($row,['uuid','public_id']),
@@ -89,7 +97,7 @@ function studentLogbookApiEntry(PDO $pdo,int $studentId,string $uuid):array{
         'unit'=>$isUnit?['id'=>(int)$row['target_id'],'code'=>$row['target_code'],'name'=>$row['target_name'],'type'=>$row['target_type']]:null,
         'actions'=>[
             'edit'=>['allowed'=>in_array($status,['BROUILLON','REJETEE'],true),'method'=>'POST','path'=>'/api/v1/student/logbook'],
-            'submit'=>['allowed'=>$status==='BROUILLON','method'=>'POST','path'=>'/api/v1/student/logbook/'.$uuid.'/submit']
+            'submit'=>['allowed'=>$canSubmit,'method'=>'POST','path'=>'/api/v1/student/logbook/'.$uuid.'/submit']
         ]
     ];
 }

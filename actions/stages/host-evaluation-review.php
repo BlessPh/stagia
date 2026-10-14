@@ -3,7 +3,7 @@
  * Endpoint AJAX de revue d'une évaluation : validation, retour en brouillon ou finalisation.
  * Les séparations d'auteur, de périmètre chef de service et de permission évitent l'auto-validation.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

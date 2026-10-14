@@ -3,7 +3,7 @@
  * Endpoint AJAX qui prépare une affectation groupée puis lance un worker asynchrone.
  * Les validations lourdes sont faites avant de créer le travail afin d'éviter un lot incohérent.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

@@ -1,10 +1,12 @@
 <?php
 /** Utilitaires communs aux endpoints AJAX : session, réponse JSON, rôle et CSRF. */
 
-if(session_status()===PHP_SESSION_NONE) session_start();
+require_once __DIR__.'/session-security.php';
+require_once __DIR__.'/error-handler.php';
 
 /** Produit une réponse JSON uniforme et termine immédiatement l'exécution. */
 function jsonResponse(bool $success,string $message='',array $data=[],int $status=200){
+    if(!$success)$message=appPublicErrorMessage($message);
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
 

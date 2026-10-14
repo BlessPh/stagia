@@ -1,6 +1,6 @@
 <?php
 /** Endpoint AJAX d'activation ou désactivation d'un appareil de pointage. */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 /* Connexion, réponse JSON et contrôle d'autorisation commun. */
 require_once __DIR__.'/../../config/database.php';

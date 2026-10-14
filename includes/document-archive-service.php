@@ -201,6 +201,21 @@ if(!function_exists('stagiaArchiveCertificateRows')){
         }
 
         $where=[];$params=[];
+        if(
+            $hasComp
+            &&$hasAssign
+            &&stagiaArchiveTableExists($pdo,'stage_result_items')
+            &&stagiaArchiveTableExists($pdo,'stage_result_transmissions')
+        ){
+            $where[]="comp.statut='VALIDE'";
+            $where[]="EXISTS(
+                SELECT 1
+                FROM stage_result_items ri
+                INNER JOIN stage_result_transmissions rt ON rt.id=ri.transmission_id
+                WHERE ri.assignment_id=comp.assignment_id
+                  AND rt.statut IN('VALIDE','ARCHIVE')
+            )";
+        }
         if($isStudent&&$studentId&&isset($cert['student_id'])){$where[]='cert.student_id=?';$params[]=$studentId;}
         elseif($eid){
             $parts=[];

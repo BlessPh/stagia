@@ -1,5 +1,5 @@
 <?php
-if(session_status()===PHP_SESSION_NONE)session_start();
+require_once __DIR__.'/includes/session-security.php';
 
 /* Efface les donnees et le cookie afin que la redirection n'essaie pas de rouvrir l'ancien fichier verrouille. */
 $_SESSION=[];

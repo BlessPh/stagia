@@ -8,12 +8,14 @@
  */
 
 /* Une session est nécessaire pour mémoriser l'utilisateur authentifié. */
-if(session_status()===PHP_SESSION_NONE)session_start();
+require_once __DIR__.'/includes/session-security.php';
 
 /* Configuration générale, connexion PDO et chargement du contexte de rôles. */
 require_once __DIR__.'/config/config.php';
 require_once __DIR__.'/config/database.php';
 require_once __DIR__.'/includes/rbac-session.php';
+require_once __DIR__.'/includes/student-account-deletion.php';
+require_once __DIR__.'/includes/login-throttle.php';
 
 /* Un utilisateur déjà connecté ne doit pas revoir le formulaire de connexion. */
 if(isset($_SESSION['user_id'])){header('Location: dashboard.php');exit;}
@@ -71,18 +73,48 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         }
 
         /* Même message générique si le compte est introuvable ou si le mot de passe est erroné. */
-        if(!$user&&$message===''){
-            $message='Nom, identifiant, e-mail ou mot de passe incorrect.';
-        }elseif($user){
-            /* Vérification de l'état administratif du compte avant le mot de passe. */
-            if(!(int)$user['actif']||($user['statut_compte']??'ACTIF')==='SUSPENDU'){
-                $message='Votre compte est désactivé.';
-            }elseif(($user['statut_compte']??'ACTIF')==='A_ACTIVER'){
-                $message="Votre compte n'est pas encore activé. Utilisez le lien d'activation reçu.";
-            /* password_verify compare le mot de passe fourni avec son hash enregistré. */
-            }elseif(empty($user['password'])||!password_verify($password,$user['password'])){
+        $throttleKeys=loginThrottleKeys($user?:null,$login);
+        $remainingSeconds=loginThrottleRemainingSeconds($pdo,$throttleKeys);
+
+        if($remainingSeconds>0){
+            http_response_code(429);
+            header('Retry-After: '.$remainingSeconds);
+            $message=loginThrottleMessage($remainingSeconds);
+        }elseif(!$user){
+            $remainingSeconds=loginThrottleRegisterFailure($pdo,$throttleKeys);
+            if($remainingSeconds>0){
+                http_response_code(429);
+                header('Retry-After: '.$remainingSeconds);
+                $message=loginThrottleMessage($remainingSeconds);
+            }elseif($message===''){
                 $message='Nom, identifiant, e-mail ou mot de passe incorrect.';
+            }
+        }elseif($user){
+            /* Le mot de passe doit etre valide avant toute reactivation d'une suppression programmee. */
+            if(empty($user['password'])||!password_verify($password,$user['password'])){
+                $remainingSeconds=loginThrottleRegisterFailure($pdo,$throttleKeys);
+                if($remainingSeconds>0){
+                    http_response_code(429);
+                    header('Retry-After: '.$remainingSeconds);
+                    $message=loginThrottleMessage($remainingSeconds);
+                }else{
+                    $message='Nom, identifiant, e-mail ou mot de passe incorrect.';
+                }
             }else{
+                loginThrottleClear($pdo,$throttleKeys);
+                $lifecycle=studentAccountCancelDeletionOnLogin($pdo,(int)$user['id']);
+                if(!empty($lifecycle['expired'])){
+                    $message='Le délai de grâce de 30 jours est expiré et ce compte a été supprimé.';
+                }elseif(!empty($lifecycle['reactivated'])){
+                    $user['actif']=1;$user['statut_compte']='ACTIF';
+                }
+                if($message!==''){
+                    /* Ne pas poursuivre une authentification expiree. */
+                }elseif(!(int)$user['actif']||($user['statut_compte']??'ACTIF')==='SUSPENDU'){
+                    $message='Votre compte est désactivé.';
+                }elseif(($user['statut_compte']??'ACTIF')==='A_ACTIVER'){
+                    $message="Votre compte n'est pas encore activé. Utilisez le lien d'activation reçu.";
+                }else{
                 /* Chargement des rôles, périmètres et affectations encore valides dans la base. */
                 $access=loadUserAccessContext($pdo,(int)$user['id']);
 
@@ -103,6 +135,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     /* Traçabilité de la dernière connexion, puis accès au tableau de bord. */
                     $pdo->prepare("UPDATE users SET derniere_connexion=NOW() WHERE id=?")->execute([$user['id']]);
                     header('Location: dashboard.php');exit;
+                }
                 }
             }
         }

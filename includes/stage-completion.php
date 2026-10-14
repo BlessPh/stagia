@@ -20,8 +20,10 @@ function completionUuid():string{
    SYNCHRONISER LA CLÔTURE D'UNE AFFECTATION
 ========================================================= */
 /**
- * Recalcule la clôture à partir des rotations, présences, journaux et évaluations,
- * puis crée ou met à jour la synthèse sans réouvrir une décision définitive.
+ * Recalcule la clôture à partir des rotations, présences, journaux,
+ * évaluations, délibération finale et validation universitaire.
+ *
+ * Une décision de clôture déjà définitive n'est jamais réouverte.
  */
 function syncStageCompletion(PDO $pdo,int $assignmentId):array{
 
@@ -64,6 +66,9 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
 
     if(!$base)
         throw new RuntimeException('Affectation introuvable.');
+
+    $hostId=(int)$base['host_etablissement_id'];
+    $campaignId=(int)$base['campaign_id'];
 
     /* =====================================================
        2. ROTATIONS
@@ -147,17 +152,33 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
 
     /* =====================================================
        5. ÉVALUATIONS DE FIN DE ROTATION FINALISÉES
+       -----------------------------------------------------
+       Conservées comme prérequis clinique historique.
+       Elles ne définissent plus la note finale officielle.
     ====================================================== */
     $stmt=$pdo->prepare("
         SELECT
             COUNT(DISTINCT rotation_id) AS rotations_evaluees,
-            AVG(note_finale) AS moyenne
-
-        FROM stage_evaluations
-
-        WHERE assignment_id=?
-          AND type_evaluation='FIN_ROTATION'
-          AND statut='FINALISEE'
+            AVG(
+                COALESCE(
+                    score_percent,
+                    LEAST(100,GREATEST(0,CASE WHEN note_finale<=20 THEN note_finale*5 ELSE note_finale END))
+                )
+            ) AS moyenne
+        FROM (
+            SELECT
+                e.rotation_id,
+                e.note_finale,
+                SUM(CASE WHEN es.note_max>0 THEN (es.note/es.note_max)*es.poids ELSE 0 END)
+                    / NULLIF(SUM(CASE WHEN es.note_max>0 THEN es.poids ELSE 0 END),0)*100 AS score_percent
+            FROM stage_evaluations e
+            LEFT JOIN stage_evaluation_scores es ON es.evaluation_id=e.id
+            WHERE e.assignment_id=?
+              AND e.type_evaluation='FIN_ROTATION'
+              AND e.statut='FINALISEE'
+              AND e.note_finale IS NOT NULL
+            GROUP BY e.id,e.rotation_id,e.note_finale
+        ) final_evaluations
     ");
 
     $stmt->execute([$assignmentId]);
@@ -165,12 +186,14 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
 
     $evaluatedRotations=(int)($eval['rotations_evaluees']??0);
 
-    $noteFinale=$eval['moyenne']!==null
+    $evaluationAverage=$eval['moyenne']!==null
         ?round((float)$eval['moyenne'],2)
         :null;
 
     /* =====================================================
        6. DERNIÈRE ÉVALUATION DE FIN FINALISÉE
+       -----------------------------------------------------
+       Conservée pour compatibilité avec stage_completions.
     ====================================================== */
     $stmt=$pdo->prepare("
         SELECT id
@@ -193,7 +216,109 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
         :null;
 
     /* =====================================================
-       7. CONDITIONS DE CLÔTURE
+       7. DÉLIBÉRATION FINALE HOSPITALIÈRE
+       -----------------------------------------------------
+       La note finale officielle vient désormais de cette
+       délibération et non de la moyenne des évaluations.
+    ====================================================== */
+    $stmt=$pdo->prepare("
+        SELECT
+            id,
+            statut,
+            mini_juries_total,
+            mini_juries_valides,
+            note_finale,
+            decision,
+            appreciation,
+            date_deliberation,
+            validated_at
+
+        FROM stage_final_deliberations
+
+        WHERE assignment_id=?
+          AND host_etablissement_id=?
+          AND statut<>'ANNULEE'
+
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+
+    $stmt->execute([$assignmentId,$hostId]);
+    $deliberation=$stmt->fetch(PDO::FETCH_ASSOC)?:null;
+
+    $deliberationValidated=
+        $deliberation
+        &&($deliberation['statut']??'')==='VALIDEE';
+
+    $deliberationId=$deliberation
+        ?(int)$deliberation['id']
+        :null;
+
+    $noteFinale=
+        $deliberationValidated
+        &&$deliberation['note_finale']!==null
+            ?round((float)$deliberation['note_finale'],2)
+            :null;
+
+    $decisionFinale=
+        $deliberationValidated
+            ?($deliberation['decision']??null)
+            :null;
+
+    $deliberationAppreciation=
+        $deliberationValidated
+            ?($deliberation['appreciation']??null)
+            :null;
+
+    /* =====================================================
+       8. VALIDATION ACADÉMIQUE DE LA TRANSMISSION
+       -----------------------------------------------------
+       Une transmission ARCHIVÉE ne compte comme validée
+       que si validated_at est réellement renseigné.
+       Cela évite qu'un simple RECU -> ARCHIVE contourne
+       la validation académique.
+    ====================================================== */
+    $stmt=$pdo->prepare("
+        SELECT
+            t.id AS transmission_id,
+            t.statut AS transmission_status,
+            t.transmitted_at,
+            t.validated_at AS university_validated_at,
+
+            ri.final_score AS transmitted_score,
+            ri.decision AS transmitted_decision,
+            ri.appreciation AS transmitted_appreciation
+
+        FROM stage_result_items ri
+
+        INNER JOIN stage_result_transmissions t
+            ON t.id=ri.transmission_id
+
+        WHERE ri.assignment_id=?
+          AND t.host_etablissement_id=?
+          AND t.campaign_id=?
+          AND t.statut IN('VALIDE','ARCHIVE')
+          AND t.validated_at IS NOT NULL
+
+        ORDER BY t.validated_at DESC,t.id DESC
+        LIMIT 1
+    ");
+
+    $stmt->execute([
+        $assignmentId,
+        $hostId,
+        $campaignId
+    ]);
+
+    $academicResult=$stmt->fetch(PDO::FETCH_ASSOC)?:null;
+
+    $academicValidated=(bool)$academicResult;
+    $transmissionId=$academicResult
+        ?(int)$academicResult['transmission_id']
+        :null;
+
+    /* =====================================================
+       9. CONDITIONS DE CLÔTURE
     ====================================================== */
     $blockers=[];
     $today=date('Y-m-d');
@@ -252,16 +377,88 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
             'Évaluation de fin finalisée manquante sur certaines rotations.';
     }
 
+    /* Délibération finale */
+    if(!$deliberationValidated){
+        $blockers[]=
+            'La délibération finale hospitalière doit être validée.';
+    }
+
+    /*
+     * Validation universitaire :
+     * le processus fonctionnel n'est terminé qu'après
+     * validation académique du résultat transmis.
+     */
+    if(!$academicValidated){
+        $blockers[]=
+            'Le résultat transmis doit être validé par l’université avant la clôture définitive.';
+    }
+
+    /*
+     * Une validation universitaire antérieure à la délibération
+     * finale ne peut pas valider le nouveau résultat officiel.
+     * Les anciennes transmissions restent historiques mais ne
+     * satisfont pas le nouveau workflow.
+     */
+    if(
+        $academicValidated &&
+        $deliberationValidated &&
+        !empty($academicResult['university_validated_at']) &&
+        !empty($deliberation['validated_at']) &&
+        strtotime($academicResult['university_validated_at'])<
+        strtotime($deliberation['validated_at'])
+    ){
+        $blockers[]=
+            'La validation universitaire est antérieure à la délibération finale. Une transmission conforme au nouveau résultat est requise.';
+    }
+
+    /*
+     * Contrôle de cohérence entre le résultat délibéré et
+     * l'instantané réellement validé par l'université.
+     */
+    if(
+        $academicValidated &&
+        $deliberationValidated
+    ){
+        $transmittedScore=
+            $academicResult['transmitted_score']!==null
+                ?round((float)$academicResult['transmitted_score'],2)
+                :null;
+
+        $transmittedDecision=
+            strtoupper(trim((string)($academicResult['transmitted_decision']??'')));
+
+        $officialDecision=
+            strtoupper(trim((string)($decisionFinale??'')));
+
+        if(
+            $noteFinale===null ||
+            $transmittedScore===null ||
+            abs($transmittedScore-$noteFinale)>0.01
+        ){
+            $blockers[]=
+                'La note validée par l’université ne correspond pas à la délibération finale.';
+        }
+
+        if(
+            $officialDecision==='' ||
+            $transmittedDecision!==$officialDecision
+        ){
+            $blockers[]=
+                'La décision validée par l’université ne correspond pas à la délibération finale.';
+        }
+    }
+
     $ready=empty($blockers);
+
     $newStatus=$ready
         ?'PRET'
         :'EN_PREPARATION';
 
     /* =====================================================
-       8. RECHERCHER UNE CLÔTURE EXISTANTE
+       10. RECHERCHER UNE CLÔTURE EXISTANTE
     ====================================================== */
     $stmt=$pdo->prepare("
-        SELECT id,statut
+        SELECT id,statut,note_finale,appreciation_finale
         FROM stage_completions
         WHERE assignment_id=?
         LIMIT 1
@@ -272,6 +469,7 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
 
     /*
      * Une clôture définitive ne doit plus être recalculée.
+     * Cette règle préserve les clôtures historiques existantes.
      */
     $locked=$existing && in_array(
         $existing['statut'],
@@ -280,7 +478,10 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
     );
 
     /* =====================================================
-       9. SYNCHRONISER stage_completions
+       11. SYNCHRONISER stage_completions
+       -----------------------------------------------------
+       Aucun changement de schéma SQL n'est nécessaire.
+       note_finale reçoit maintenant la note de délibération.
     ====================================================== */
     if($locked){
 
@@ -389,8 +590,8 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
             $assignmentId,
             $base['admission_id'],
             $base['student_id'],
-            $base['host_etablissement_id'],
-            $base['campaign_id'],
+            $hostId,
+            $campaignId,
 
             $newStatus,
 
@@ -415,8 +616,17 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
         $completionId=(int)$pdo->lastInsertId();
     }
 
+    $resultNoteFinale=$noteFinale;
+    $resultDecisionFinale=$decisionFinale;
+    $resultAppreciation=$deliberationAppreciation;
+    if($locked&&!$deliberationValidated){
+        $resultNoteFinale=$existing['note_finale']!==null?(float)$existing['note_finale']:null;
+        $resultDecisionFinale=$academicResult['transmitted_decision']??null;
+        $resultAppreciation=$existing['appreciation_finale']??($academicResult['transmitted_appreciation']??null);
+    }
+
     /* =====================================================
-       10. RÉSULTAT
+       12. RÉSULTAT
     ====================================================== */
     return [
         'id'=>$completionId,
@@ -445,9 +655,24 @@ function syncStageCompletion(PDO $pdo,int $assignmentId):array{
         'journaux_valides'=>$journauxValides,
 
         'evaluations_finales'=>$evaluatedRotations,
+        'evaluation_average'=>$evaluationAverage,
 
+        /* Compatibilité historique. */
         'final_evaluation_id'=>$finalEvaluationId,
-        'note_finale'=>$noteFinale,
+
+        /* Résultat officiel actuel. */
+        'note_finale'=>$resultNoteFinale,
+        'decision_finale'=>$resultDecisionFinale,
+
+        'deliberation_id'=>$deliberationId,
+        'deliberation_status'=>$deliberation['statut']??null,
+        'deliberation_date'=>$deliberation['date_deliberation']??null,
+        'deliberation_validated_at'=>$deliberation['validated_at']??null,
+        'deliberation_appreciation'=>$resultAppreciation,
+
+        'transmission_id'=>$transmissionId,
+        'university_validation_status'=>$academicResult['transmission_status']??null,
+        'university_validated_at'=>$academicResult['university_validated_at']??null,
 
         'blockers'=>$locked
             ?[]

@@ -15,13 +15,16 @@ require_once __DIR__.'/../../includes/app-header.php';
 .result-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.result-card,.result-kpi{background:#fff;border:1px solid #e7ebf0;border-radius:14px}.result-kpi{padding:16px}.result-kpi small{display:block;color:#64748b;font-size:11px;text-transform:uppercase}.result-kpi strong{font-size:26px}.result-card{overflow:hidden}.metric{font-size:12px;color:#64748b}@media(max-width:900px){.result-kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.result-kpis{grid-template-columns:1fr}}
 </style>
 <main class="dashboard-content">
-<div class="stagia-page-head"><div><h1>Résultats de stage</h1><p>Consolidez les présences, journaux et évaluations puis transmettez les résultats à l’université.</p></div><button id="refreshBtn" class="btn btn-light border"><i class="bi bi-arrow-clockwise me-1"></i>Actualiser</button></div>
+<div class="stagia-page-head"><div><h1>Résultats de stage</h1><p>Consolidez le suivi, les mini-jurys et la délibération finale puis transmettez les résultats à l’université.</p></div><button id="refreshBtn" class="btn btn-light border"><i class="bi bi-arrow-clockwise me-1"></i>Actualiser</button></div>
 
-<div class="alert alert-light border"><i class="bi bi-info-circle text-primary me-1"></i> Une transmission est possible dès qu’au moins une évaluation est validée ou finalisée. Les résultats envoyés restent consultables par l’université.</div>
+<div class="alert alert-light border"><i class="bi bi-info-circle text-primary me-1"></i> Une transmission est possible lorsque les rotations sont terminées,
+    les présences sont enregistrées, les journaux requis sont validés,
+    les évaluations de fin de rotation sont finalisées, les mini-jurys sont validés
+    et la délibération finale hospitalière est validée.</div>
 
 <div class="result-kpis mb-4">
     <div class="result-kpi"><small>Sessions</small><strong id="kTotal">0</strong></div>
-    <div class="result-kpi"><small>Prêtes</small><strong id="kReady">0</strong></div>
+    <div class="result-kpi"><small>Prêtes à envoyer</small><strong id="kReady">0</strong></div>
     <div class="result-kpi"><small>Envoyées / reçues</small><strong id="kSent">0</strong></div>
     <div class="result-kpi"><small>Validées</small><strong id="kValid">0</strong></div>
 </div>
@@ -40,6 +43,17 @@ const BASE='<?=BASE_URL?>',CSRF='<?=htmlspecialchars($_SESSION['csrf'])?>',$=id=
 let items=[],timer;
 function dateFr(v){if(!v)return '-';const p=String(v).slice(0,10).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:v;}
 function badge(t){return {ENVOYE:'<span class="badge bg-primary">ENVOYÉ</span>',RECU:'<span class="badge bg-info text-dark">REÇU</span>',VALIDE:'<span class="badge bg-success">VALIDÉ</span>',ARCHIVE:'<span class="badge bg-dark">ARCHIVÉ</span>'}[t]||'<span class="badge bg-secondary">NON ENVOYÉ</span>';}
+function stateText(x){
+    const t=x.transmission?.statut,m=x.metrics||{};
+    if(x.can_send)return 'Prêt à transmettre';
+    if(t==='ENVOYE')return 'Envoyé à l’université';
+    if(t==='RECU')return 'Reçu par l’université';
+    if(t==='VALIDE')return 'Validé par l’université';
+    if(t==='ARCHIVE')return 'Archivé';
+    if(m.clinical_ready&&!m.ready)return 'Délibération finale attendue';
+    if(m.deliberation_status==='BROUILLON')return 'Délibération en brouillon';
+    return 'Prérequis de suivi incomplets';
+}
 async function load(){
     const q=$('search').value.trim()?('?q='+encodeURIComponent($('search').value.trim())):'';
     try{
@@ -50,12 +64,12 @@ async function load(){
 function render(){
     $('rows').innerHTML=items.length?items.map(x=>{
         const m=x.metrics||{},t=x.transmission;
-        const action=x.can_send?`<button class="btn btn-sm btn-primary-stagia send" data-id="${x.campaign_id}"><i class="bi bi-send-check me-1"></i>Envoyer</button>`:'<span class="text-muted small">—</span>';
+        const action=x.can_send?`<button class="btn btn-sm btn-primary-stagia send" data-id="${x.campaign_id}"><i class="bi bi-send-check me-1"></i>Transmettre à l’université</button>`:'<span class="text-muted small">—</span>';
         return `<tr>
             <td><strong>${esc(x.titre)}</strong><small class="d-block text-muted">${esc(x.code||'')} · ${dateFr(x.date_debut)} → ${dateFr(x.date_fin)}</small></td>
             <td>${esc(x.university_name||'-')}</td>
-            <td><strong>${Number(m.students||0)}</strong> stagiaire(s)<div class="metric">${Number(m.evaluation_count||0)} évaluation(s) · ${Number(m.validated_journal_count||0)}/${Number(m.journal_count||0)} journal(aux)</div><div class="metric">Présence : ${Number(m.presence_rate||0).toLocaleString('fr-FR')}%</div></td>
-            <td><strong>${Number(m.average_score||0).toLocaleString('fr-FR')}%</strong><div class="metric">${m.ready?'Prêt à transmettre':'Évaluation attendue'}</div></td>
+            <td><strong>${Number(m.students||0)}</strong> stagiaire(s)<div class="metric">${Number(m.evaluation_count||0)} évaluation(s) · ${Number(m.validated_journal_count||0)}/${Number(m.journal_count||0)} journal(aux)</div><div class="metric">Présence : ${Number(m.presence_rate||0).toLocaleString('fr-FR')}%</div><div class="metric">Délibérations : ${Number(m.validated_deliberation_count||0)}/${Number(m.students||0)} validée(s)</div></td>
+            <td><strong>${Number(m.average_score||0).toLocaleString('fr-FR')}%</strong><div class="metric">${esc(stateText(x))}</div></td>
             <td>${badge(t?.statut)}${t?.transmitted_at?`<small class="d-block text-muted">${dateFr(t.transmitted_at)}</small>`:''}</td>
             <td class="text-end">${action}</td>
         </tr>`;

@@ -2,6 +2,7 @@
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/auth.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-logbook-rules.php';
 
 requireAjaxRole(['STAGIAIRE']);
 
@@ -129,6 +130,15 @@ try{
         }
     }
 
+    $eligibleRotations=array_values(array_filter(
+        $rotations,
+        static fn(array $rotation):bool=>in_array(
+            $rotation['statut'],
+            ['ACTIVE','TERMINEE'],
+            true
+        )
+    ));
+
     /*
      * Journaux du stagiaire.
      * Si on vient de "Mes stages", on limite à l'affectation sélectionnée.
@@ -157,6 +167,8 @@ try{
 
             r.sequence_no,
             r.statut AS rotation_statut,
+            r.date_debut AS rotation_date_debut,
+            r.date_fin AS rotation_date_fin,
 
             hu.code AS unit_code,
             hu.nom AS unit_name,
@@ -224,6 +236,15 @@ try{
             ['BROUILLON','REJETE'],
             true
         );
+        $entry['can_submit']=
+            $entry['statut']==='BROUILLON' &&
+            stageLogbookRotationDateIsValid(
+                (string)$entry['date_journal'],
+                $entry['rotation_date_debut'],
+                $entry['rotation_date_fin'],
+                $entry['rotation_statut'],
+                $today
+            );
 
         $stats['total']++;
 
@@ -242,9 +263,10 @@ try{
         'student_id'=>$studentId,
         'today'=>$today,
         'rotations'=>$rotations,
+        'eligible_rotations'=>$eligibleRotations,
         'current_rotation'=>$currentRotation,
         'next_rotation'=>$nextRotation,
-        'can_create'=>$currentRotation!==null,
+        'can_create'=>!empty($eligibleRotations),
         'entries'=>$entries,
         'stats'=>$stats
     ]);

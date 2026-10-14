@@ -43,10 +43,12 @@ try{
 
     $items=[];
     $hostCount=$expectedCount=$readyCount=$hostResultReadyCount=0;
+    $miniJuryReadyCount=$finalDeliberationReadyCount=0;
     $chefCount=$chefEvaluationCount=0;
     $encadreurEvaluationCount=$encadreurRotationsCount=0;
     $logbookCount=$attendanceCount=$taskCount=$feedbackCount=0;
     $academicCount=$applicationCount=$universityResultCount=$studentOfferCount=0;
+    $universityJustificationCount=$studentJustificationCount=0;
     $primary='#';
 
     if($eid>0&&$host&&contextPermission('campaign.hosting.respond')){
@@ -95,8 +97,25 @@ try{
         $taskCount=nf_count($pdo,"SELECT COUNT(DISTINCT t.id) FROM stage_tasks t JOIN stage_assignments a ON a.id=t.assignment_id JOIN stage_rotations r ON r.assignment_id=a.id JOIN stage_rotation_supervisors rs ON rs.rotation_id=r.id AND rs.user_id=? AND rs.actif=1 WHERE a.host_etablissement_id=? AND t.statut='TERMINEE'",[$uid,$eid]);
     }
 
+    if($eid>0&&$host&&($isAdmin||$isCoord||$isChef||contextPermission('stage.manage'))){
+        $mjParams=[$eid,$eid];$mjWhere='';
+        if($isChef){
+            $scope=chefServiceScope($pdo,$eid,$uid);
+            if(empty($scope['all'])){
+                $ids=array_values(array_unique(array_map('intval',$scope['ids']??[])));
+                $mjWhere=$ids?' AND r.host_unit_id IN('.implode(',',array_fill(0,count($ids),'?')).')':' AND 1=0';
+                $mjParams=array_merge($mjParams,$ids);
+            }
+        }
+        $miniJuryReadyCount=nf_count($pdo,"SELECT COUNT(*) FROM(SELECT r.assignment_id,COALESCE(parent.id,hu.id) department_id FROM stage_rotations r JOIN stage_assignments a ON a.id=r.assignment_id JOIN host_units hu ON hu.id=r.host_unit_id LEFT JOIN host_units parent ON parent.id=hu.parent_id AND parent.host_etablissement_id=r.host_etablissement_id LEFT JOIN stage_mini_juries mj ON mj.assignment_id=r.assignment_id AND mj.department_unit_id=COALESCE(parent.id,hu.id) AND mj.host_etablissement_id=r.host_etablissement_id WHERE r.host_etablissement_id=? AND a.host_etablissement_id=? AND r.statut<>'ANNULEE' $mjWhere GROUP BY r.assignment_id,COALESCE(parent.id,hu.id) HAVING SUM(r.statut='TERMINEE')=COUNT(*) AND SUM(EXISTS(SELECT 1 FROM stage_evaluations ev WHERE ev.rotation_id=r.id AND ev.type_evaluation='FIN_ROTATION' AND ev.statut='FINALISEE'))=COUNT(*) AND MAX(CASE WHEN mj.statut='VALIDEE' THEN 1 ELSE 0 END)=0)x",$mjParams);
+
+        if(!$isChef){
+            $finalDeliberationReadyCount=nf_count($pdo,"SELECT COUNT(*) FROM(SELECT mj.assignment_id FROM stage_mini_juries mj JOIN stage_assignments a ON a.id=mj.assignment_id WHERE a.host_etablissement_id=? GROUP BY mj.assignment_id HAVING COUNT(*)>0 AND SUM(mj.statut='VALIDEE')=COUNT(*) AND NOT EXISTS(SELECT 1 FROM stage_final_deliberations fd WHERE fd.assignment_id=mj.assignment_id AND fd.statut='VALIDEE'))x",[$eid]);
+        }
+    }
+
     if($eid>0&&$host&&contextPermission('stage.manage')&&!$isChef&&!$isEnc){
-        $hostResultReadyCount=nf_count($pdo,"SELECT COUNT(DISTINCT c.id) FROM stage_evaluations ev JOIN stage_rotations r ON r.id=ev.rotation_id JOIN stage_assignments a ON a.id=r.assignment_id JOIN stage_admissions ad ON ad.id=a.admission_id JOIN stage_reservations sr ON sr.id=ad.reservation_id JOIN stage_applications app ON app.id=sr.application_id JOIN stage_campaigns c ON c.id=app.campaign_id WHERE r.host_etablissement_id=? AND ev.statut IN('VALIDEE','FINALISEE') AND NOT EXISTS(SELECT 1 FROM stage_result_transmissions t WHERE t.campaign_id=c.id AND t.host_etablissement_id=? AND t.statut IN('ENVOYE','RECU','VALIDE','ARCHIVE'))",[$eid,$eid]);
+        $hostResultReadyCount=nf_count($pdo,"SELECT COUNT(DISTINCT c.id) FROM stage_final_deliberations fd JOIN stage_assignments a ON a.id=fd.assignment_id JOIN stage_admissions ad ON ad.id=a.admission_id JOIN stage_reservations sr ON sr.id=ad.reservation_id JOIN stage_applications app ON app.id=sr.application_id JOIN stage_campaigns c ON c.id=app.campaign_id WHERE a.host_etablissement_id=? AND fd.statut='VALIDEE' AND NOT EXISTS(SELECT 1 FROM stage_result_transmissions t WHERE t.campaign_id=c.id AND t.host_etablissement_id=? AND t.statut IN('ENVOYE','RECU','VALIDE','ARCHIVE'))",[$eid,$eid]);
     }
 
     if($eid>0&&$academic&&contextPermission('campaign.university.view')){
@@ -114,9 +133,16 @@ try{
         $items=array_merge($items,nf_rows($pdo,"SELECT CONCAT('UR:',t.id) `key`,'Résultats de stage reçus' title,CONCAT(COALESCE(h.nom,'Hôpital'),' · ',c.code,' — ',c.titre) subtitle,CONCAT('Envoyé le ',COALESCE(DATE_FORMAT(t.transmitted_at,'%d/%m/%Y %H:%i'),'')) meta,? href,COALESCE(t.transmitted_at,t.created_at) notification_at FROM stage_result_transmissions t JOIN stage_campaigns c ON c.id=t.campaign_id LEFT JOIN etablissements h ON h.id=t.host_etablissement_id WHERE t.university_etablissement_id=? AND t.statut='ENVOYE' ORDER BY notification_at DESC,t.id DESC LIMIT 6",[nf_url('/views/espace-etablissement/resultats-stage.php'),$eid]));
     }
 
+    if($eid>0&&$academic&&contextPermission(['stage.view','stage.manage'])){
+        $universityJustificationCount=nf_count($pdo,"SELECT COUNT(*) FROM stage_followup_justifications WHERE university_etablissement_id=? AND statut='EN_ATTENTE'",[$eid]);
+        $items=array_merge($items,nf_rows($pdo,"SELECT CONCAT('UJ:',j.id) `key`,'Nouvelle justification de stage' title,CONCAT(TRIM(CONCAT_WS(' ',sp.nom,sp.postnom,sp.prenom)),' · ',c.code) subtitle,CONCAT(CASE j.type_situation WHEN 'INTERRUPTION' THEN 'Stage interrompu' ELSE 'Stage non démarré' END,' · ',DATE_FORMAT(j.submitted_at,'%d/%m/%Y %H:%i')) meta,? href,j.submitted_at notification_at FROM stage_followup_justifications j JOIN student_profiles sp ON sp.id=j.student_id JOIN stage_campaigns c ON c.id=j.campaign_id WHERE j.university_etablissement_id=? AND j.statut='EN_ATTENTE' ORDER BY j.submitted_at DESC,j.id DESC LIMIT 6",[nf_url('/views/stages/justifications.php'),$eid]));
+    }
+
     if($student&&$uid>0){
         $sid=nf_count($pdo,"SELECT id FROM student_profiles WHERE user_id=? AND statut='ACTIF' LIMIT 1",[$uid]);
         if($sid){
+            $studentJustificationCount=nf_count($pdo,"SELECT COUNT(*) FROM stage_followup_justifications WHERE student_id=? AND statut IN('ACCEPTEE','REJETEE') AND student_seen_at IS NULL",[$sid]);
+            $items=array_merge($items,nf_rows($pdo,"SELECT CONCAT('SJ:',j.id) `key`,CASE WHEN j.statut='ACCEPTEE' THEN 'Justification acceptée' ELSE 'Justification rejetée' END title,CONCAT(c.code,' — ',c.titre) subtitle,CONCAT(COALESCE(h.nom,'Établissement d’accueil'),' · ',DATE_FORMAT(j.reviewed_at,'%d/%m/%Y %H:%i')) meta,? href,COALESCE(j.reviewed_at,j.updated_at,j.submitted_at) notification_at FROM stage_followup_justifications j JOIN stage_campaigns c ON c.id=j.campaign_id LEFT JOIN etablissements h ON h.id=j.host_etablissement_id WHERE j.student_id=? AND j.statut IN('ACCEPTEE','REJETEE') AND j.student_seen_at IS NULL ORDER BY notification_at DESC,j.id DESC LIMIT 6",[nf_url('/views/espace-etudiant/justifications-stage.php'),$sid]));
             $studentEligibility="FROM student_enrollments se JOIN student_academic_enrollments ae ON ae.enrollment_id=se.id AND ae.statut='EN_COURS' JOIN stage_campaigns c ON c.owner_etablissement_id=se.etablissement_id AND c.annee_academique_id=ae.annee_academique_id AND c.type_campagne='UNIVERSITAIRE' AND c.statut='OUVERTE' JOIN stage_types st ON st.id=c.stage_type_id AND st.actif=1 JOIN stage_campaign_promotions cp ON cp.campaign_id=c.id AND cp.promotion_id=ae.promotion_id WHERE se.student_id=? AND se.statut='ACTIF' AND EXISTS(SELECT 1 FROM stage_campaign_participations sp JOIN etablissements h ON h.id=sp.host_etablissement_id WHERE sp.university_campaign_id=c.id AND sp.statut='ACCEPTEE' AND COALESCE(NULLIF(sp.capacite_acceptee,0),NULLIF(sp.capacite_allouee,0),0)>0 AND h.type_etablissement='HOPITAL' AND h.statut IN('VALIDE','ACTIF')) AND NOT EXISTS(SELECT 1 FROM stage_applications sa LEFT JOIN stage_reservations sr ON sr.application_id=sa.id LEFT JOIN stage_admissions ad ON ad.reservation_id=sr.id LEFT JOIN stage_assignments ass ON ass.admission_id=ad.id WHERE sa.campaign_id=c.id AND sa.academic_enrollment_id=ae.id AND ((sr.statut='RESERVEE_TEMPORAIREMENT' AND (sr.expires_at IS NULL OR sr.expires_at>NOW())) OR sr.statut='EN_ATTENTE_PAIEMENT' OR sr.statut='CONFIRMEE' OR ad.id IS NOT NULL OR (ass.id IS NOT NULL AND ass.statut<>'ANNULEE'))) AND NOT EXISTS(SELECT 1 FROM stage_completions sc WHERE sc.student_id=se.student_id AND sc.campaign_id=c.id AND sc.statut IN('EN_PREPARATION','PRET','VALIDE'))";
             $studentOfferCount=nf_count($pdo,"SELECT COUNT(DISTINCT c.id) $studentEligibility",[$sid]);
             $rows=nf_rows($pdo,"SELECT DISTINCT c.id,c.code,c.titre,c.date_debut notification_at,st.libelle $studentEligibility ORDER BY c.date_debut DESC,c.id DESC LIMIT 8",[$sid]);
@@ -124,11 +150,18 @@ try{
         }
     }
 
+    $nowNotification=date('Y-m-d H:i:s');
+    if($miniJuryReadyCount>0)
+        $items[]=['key'=>'N:MINI-JURYS','title'=>'Mini-jurys prêts','subtitle'=>$miniJuryReadyCount.' passage(s) à traiter','meta'=>'Rotations et évaluations finalisées','href'=>nf_url('/views/espace-hopital/mini-jurys.php'),'notification_at'=>$nowNotification];
+    if($finalDeliberationReadyCount>0)
+        $items[]=['key'=>'N:DELIBERATIONS','title'=>'Délibérations finales prêtes','subtitle'=>$finalDeliberationReadyCount.' stagiaire(s) prêt(s)','meta'=>'Tous les mini-jurys sont validés','href'=>nf_url('/views/espace-hopital/deliberations-finales.php'),'notification_at'=>$nowNotification];
+
     usort($items,fn($a,$b)=>strcmp((string)($b['notification_at']??''),(string)($a['notification_at']??'')));
     $items=array_slice($items,0,8);
-    $count=$hostCount+$expectedCount+$readyCount+$hostResultReadyCount+$chefCount+$chefEvaluationCount+$encadreurEvaluationCount+$encadreurRotationsCount+$logbookCount+$attendanceCount+$taskCount+$feedbackCount+$academicCount+$applicationCount+$universityResultCount+$studentOfferCount;
+    $count=$hostCount+$expectedCount+$readyCount+$miniJuryReadyCount+$finalDeliberationReadyCount+$hostResultReadyCount+$chefCount+$chefEvaluationCount+$encadreurEvaluationCount+$encadreurRotationsCount+$logbookCount+$attendanceCount+$taskCount+$feedbackCount+$academicCount+$applicationCount+$universityResultCount+$studentOfferCount+$universityJustificationCount+$studentJustificationCount;
 
-    if($student)$primary=nf_url('/views/espace-etudiant/stages.php');
+    if($studentJustificationCount>0)$primary=nf_url('/views/espace-etudiant/justifications-stage.php');
+    elseif($student)$primary=nf_url('/views/espace-etudiant/stages.php');
     elseif($readyCount>0)$primary=nf_url('/views/espace-hopital/affectations.php');
     elseif($encadreurRotationsCount>0)$primary=nf_url('/views/espace-hopital/mes-rotations.php');
     elseif(($chefEvaluationCount+$encadreurEvaluationCount)>0)$primary=nf_url('/views/espace-hopital/evaluations.php');
@@ -137,9 +170,12 @@ try{
     elseif($attendanceCount>0)$primary=nf_url('/views/espace-hopital/presences.php');
     elseif($taskCount>0)$primary=nf_url('/views/espace-hopital/taches-progression.php');
     elseif($feedbackCount>0)$primary=nf_url('/views/espace-hopital/feedbacks.php');
+    elseif($miniJuryReadyCount>0)$primary=nf_url('/views/espace-hopital/mini-jurys.php');
+    elseif($finalDeliberationReadyCount>0)$primary=nf_url('/views/espace-hopital/deliberations-finales.php');
     elseif($hostResultReadyCount>0)$primary=nf_url('/views/espace-hopital/resultats-stage.php');
     elseif($expectedCount>0)$primary=nf_url('/views/espace-hopital/stagiaires-attendus.php');
     elseif($hostCount>0)$primary=nf_url('/views/espace-hopital/sollicitations-d4.php');
+    elseif($universityJustificationCount>0)$primary=nf_url('/views/stages/justifications.php');
     elseif($universityResultCount>0)$primary=nf_url('/views/espace-etablissement/resultats-stage.php');
     elseif($applicationCount>0)$primary=nf_url('/views/stages/candidatures.php');
     elseif($academicCount>0)$primary=nf_url('/views/stages/d4-partenaires.php');
@@ -149,10 +185,12 @@ try{
     jsonResponse(true,'',[
         'count'=>$count,'host_count'=>$hostCount,'expected_count'=>$expectedCount,'ready_assignment_count'=>$readyCount,
         'host_result_ready_count'=>$hostResultReadyCount,'chef_service_count'=>$chefCount,'chef_evaluation_count'=>$chefEvaluationCount,
+        'mini_jury_ready_count'=>$miniJuryReadyCount,'final_deliberation_ready_count'=>$finalDeliberationReadyCount,
         'encadreur_evaluation_count'=>$encadreurEvaluationCount,'evaluation_count'=>$chefEvaluationCount+$encadreurEvaluationCount,
         'encadreur_rotations_count'=>$encadreurRotationsCount,'logbook_count'=>$logbookCount,'attendance_count'=>$attendanceCount,
         'task_count'=>$taskCount,'feedback_count'=>$feedbackCount,'academic_count'=>$academicCount,'application_count'=>$applicationCount,
-        'university_result_count'=>$universityResultCount,'student_offer_count'=>$studentOfferCount,'primary_href'=>$primary,'items'=>$items,
+        'university_result_count'=>$universityResultCount,'university_justification_count'=>$universityJustificationCount,
+        'student_offer_count'=>$studentOfferCount,'student_justification_count'=>$studentJustificationCount,'primary_href'=>$primary,'items'=>$items,
         'debug'=>['role'=>$role,'is_chef'=>$isChef,'is_encadreur'=>$isEnc]
     ]);
 }catch(Throwable $e){

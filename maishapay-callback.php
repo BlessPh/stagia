@@ -41,9 +41,9 @@ try{
     $result=finalizeFinancialPaymentWorkflow($pdo,$reference,$status,$transactionId,$payload);
     echo json_encode(['success'=>true,'status'=>'OK','data'=>$result],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 }catch(OutOfBoundsException $error){
-    http_response_code(404);echo json_encode(['success'=>false,'message'=>$error->getMessage()],JSON_UNESCAPED_UNICODE);
+    http_response_code(404);echo json_encode(['success'=>false,'message'=>appPublicErrorMessage($error->getMessage())],JSON_UNESCAPED_UNICODE);
 }catch(InvalidArgumentException|DomainException $error){
-    http_response_code(422);echo json_encode(['success'=>false,'message'=>$error->getMessage()],JSON_UNESCAPED_UNICODE);
+    http_response_code(422);echo json_encode(['success'=>false,'message'=>appPublicErrorMessage($error->getMessage())],JSON_UNESCAPED_UNICODE);
 }catch(Throwable $error){
     error_log('[MAISHAPAY CALLBACK] '.$error->getMessage());
     http_response_code(500);echo json_encode(['success'=>false,'message'=>'Impossible de finaliser le paiement.'],JSON_UNESCAPED_UNICODE);

@@ -3,12 +3,13 @@
  * Endpoint AJAX du cycle universitaire de réception, validation et archivage d'un relevé de résultats.
  * Chaque action est limitée au statut courant de la transmission verrouillée.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';
 require_once __DIR__.'/../../includes/permissions.php';
 require_once __DIR__.'/../../includes/stage-results.php';
+require_once __DIR__.'/../../includes/stage-certificate-auto.php';
 
 requireAjaxRole(['ADMIN_ETABLISSEMENT','RESPONSABLE_PEDAGOGIQUE']);
 
@@ -26,7 +27,11 @@ try{
     if(!$eid||!$uid||!$id)jsonResponse(false,'Informations incomplètes.',[],422);
     if(!in_array($action,['RECEIVE','VALIDATE','ARCHIVE'],true))jsonResponse(false,'Action invalide.',[],422);
 
+    /* Les éventuelles évolutions de schéma sont exécutées avant la transaction métier. */
+    if($action==='VALIDATE')stageEnsureCertificateSchema($pdo);
+
     $pdo->beginTransaction();
+    $certificatesCreated=0;
 
     $s=$pdo->prepare("SELECT * FROM stage_result_transmissions WHERE id=? AND university_etablissement_id=? LIMIT 1 FOR UPDATE");
     $s->execute([$id,$eid]);
@@ -51,17 +56,19 @@ try{
                 validated_at=NOW()
             WHERE id=?
         ")->execute([$uid,$uid,$id]);
-        $msg='Résultats validés par l’université.';
+        /* La validation universitaire est l'unique déclencheur normal des attestations. */
+        $certificatesCreated=stageEnsureCertificatesFromValidatedResults($pdo,0,false,$id);
+        $msg='Résultats validés par l’université. '.$certificatesCreated.' attestation(s) générée(s).';
     }else{
         /* ARCHIVE ne s'applique qu'à un relevé déjà reçu ou validé. */
-        if(!in_array($t['statut'],['RECU','VALIDE'],true))throw new RuntimeException('Seuls les résultats reçus ou validés peuvent être archivés.');
+        if($t['statut']!=='VALIDE')throw new RuntimeException('Seuls les résultats validés peuvent être archivés.');
         $pdo->prepare("UPDATE stage_result_transmissions SET statut='ARCHIVE',archived_by=?,archived_at=NOW() WHERE id=?")
             ->execute([$uid,$id]);
         $msg='Résultats archivés.';
     }
 
     $pdo->commit();
-    jsonResponse(true,$msg,['id'=>$id,'action'=>$action]);
+    jsonResponse(true,$msg,['id'=>$id,'action'=>$action,'certificates_created'=>$certificatesCreated]);
 }catch(Throwable $e){
     if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();
     jsonResponse(false,'Erreur : '.$e->getMessage(),[],422);

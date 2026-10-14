@@ -4,12 +4,13 @@
  * Il consolide capacités, universités acceptées, allocations et réservations en cours.
  */
 ob_start();header('Content-Type: application/json; charset=utf-8');
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/permissions.php';
 
 /** Envoie la réponse JSON unique après nettoyage éventuel du tampon de sortie. */
 function respond($ok,$message='',$data=[],$status=200){
+    if(!$ok&&function_exists('appPublicErrorMessage'))$message=appPublicErrorMessage((string)$message);
     http_response_code($status);if(ob_get_length())ob_clean();
     echo json_encode(['success'=>$ok,'message'=>$message,'data'=>$data],JSON_UNESCAPED_UNICODE);exit;
 }

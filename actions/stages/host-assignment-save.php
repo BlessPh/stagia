@@ -3,7 +3,7 @@
  * Endpoint AJAX d'affectation individuelle d'un stagiaire à un service d'accueil.
  * La logique métier détaillée est centralisée dans le service d'affectation partagé.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 /* Dépendances communes et service qui applique les règles d'affectation. */
 require_once __DIR__.'/../../config/database.php';

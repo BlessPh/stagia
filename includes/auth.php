@@ -4,7 +4,7 @@
  * Elle valide la session, le compte, les rôles, le contexte établissement
  * et les permissions effectives avant de laisser la page continuer.
  */
-if(session_status()===PHP_SESSION_NONE)session_start();
+require_once __DIR__.'/session-security.php';
 
 if(!defined('BASE_URL'))require_once __DIR__.'/../config/config.php';
 if(!isset($pdo))require_once __DIR__.'/../config/database.php';

@@ -70,7 +70,7 @@ function actions(x){
     const a=[];
     if(x.statut==='ENVOYE')a.push(`<button class="btn btn-sm btn-outline-primary act" data-id="${x.id}" data-action="RECEIVE">Marquer reçu</button>`);
     if(['ENVOYE','RECU'].includes(x.statut))a.push(`<button class="btn btn-sm btn-success act" data-id="${x.id}" data-action="VALIDATE">Valider</button>`);
-    if(['RECU','VALIDE'].includes(x.statut))a.push(`<button class="btn btn-sm btn-outline-secondary act" data-id="${x.id}" data-action="ARCHIVE">Archiver</button>`);
+    if(x.statut==='VALIDE')a.push(`<button class="btn btn-sm btn-outline-secondary act" data-id="${x.id}" data-action="ARCHIVE">Archiver</button>`);
     return a.join(' ');
 }
 async function review(id,action){

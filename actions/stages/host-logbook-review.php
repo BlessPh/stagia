@@ -3,7 +3,7 @@
  * Endpoint AJAX de validation ou rejet d'un journal de bord soumis par un stagiaire.
  * Chaque décision est vérifiée contre la rotation, son encadreur actif et l'historique de revue.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

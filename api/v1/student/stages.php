@@ -169,7 +169,8 @@ try{
         foreach(['assignment_id','admission_id','application_id','campaign_id','host_etablissement_id','hospital_id','academic_enrollment_id'] as $key)$row[$key]=(int)$row[$key];
         foreach(['coordination_unit_id','department_id','initial_unit_id','promotion_id','group_id'] as $key)$row[$key]=$row[$key]!==null?(int)$row[$key]:null;
         foreach(['total_rotations','total_presences','total_retards','total_absences','total_justifiees','total_journaux','journaux_valides'] as $key)$row[$key]=(int)($row[$key]??0);
-        foreach(['taux_presence','note_finale'] as $key)$row[$key]=$row[$key]!==null?(float)$row[$key]:null;
+        $row['taux_presence']=$row['taux_presence']!==null?(float)$row['taux_presence']:null;
+        $row['note_finale']=$row['completion_status']==='VALIDE'&&$row['note_finale']!==null?(float)$row['note_finale']:null;
 
         $workflowStatus=$row['completion_status']==='VALIDE'?'VALIDE':match($row['assignment_status']){
             'ACTIVE'=>'EN_COURS','PLANIFIEE'=>'PLANIFIE','TERMINEE'=>'TERMINE',default=>$row['assignment_status']

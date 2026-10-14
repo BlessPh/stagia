@@ -2,6 +2,7 @@
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/auth.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-logbook-rules.php';
 
 requireAjaxRole(['STAGIAIRE']);
 verifyAjaxCsrf();
@@ -18,6 +19,7 @@ try{
     $id=(int)($_POST['id']??0);
     $assignmentId=(int)($_POST['assignment_id']??0);
     $rotationId=(int)($_POST['rotation_id']??0);
+    $dateJournal=trim((string)($_POST['date_journal']??''));
 
     $resume=trim((string)($_POST['resume_activites']??''));
     $apprentissages=trim((string)($_POST['apprentissages']??''));
@@ -149,6 +151,9 @@ try{
             SELECT
                 r.id AS rotation_id,
                 r.assignment_id,
+                r.date_debut,
+                r.date_fin,
+                r.statut AS rotation_statut,
                 sa.host_etablissement_id
 
             FROM student_profiles sp
@@ -168,18 +173,16 @@ try{
 
             JOIN stage_admissions ad
               ON ad.reservation_id=sr.id
-             AND ad.statut IN('ADMIS','EN_COURS')
+             AND ad.statut IN('ADMIS','EN_COURS','TERMINE')
 
             JOIN stage_assignments sa
               ON sa.admission_id=ad.id
              AND sa.id=?
-             AND sa.statut IN('PLANIFIEE','ACTIVE')
+             AND sa.statut<>'ANNULEE'
 
             JOIN stage_rotations r
               ON r.assignment_id=sa.id
              AND r.id=?
-             AND r.statut IN('PLANIFIEE','ACTIVE')
-             AND ? BETWEEN r.date_debut AND r.date_fin
 
             WHERE sp.id=?
 
@@ -188,7 +191,6 @@ try{
         $s->execute([
             $assignmentId,
             $rotationId,
-            $today,
             $studentId
         ]);
         $rotation=$s->fetch(PDO::FETCH_ASSOC);
@@ -196,28 +198,25 @@ try{
         if(!$rotation)
             jsonResponse(
                 false,
-                'Aucune rotation active ne correspond à ce stage aujourd’hui.',
+                'Cette rotation n’est pas disponible pour le journal.',
                 [],
                 422
             );
 
-        $s=$pdo->prepare("
-            SELECT id
-            FROM stage_logbook_entries
-            WHERE rotation_id=?
-              AND student_id=?
-              AND date_journal=?
-            LIMIT 1
-        ");
-        $s->execute([$rotationId,$studentId,$today]);
+        $dateJournal=stageLogbookValidateRotationDate(
+            $dateJournal,
+            $rotation['date_debut'],
+            $rotation['date_fin'],
+            $rotation['rotation_statut'],
+            $today
+        );
 
-        if($s->fetchColumn())
-            jsonResponse(
-                false,
-                'Une entrée de journal existe déjà pour cette rotation aujourd’hui.',
-                [],
-                422
-            );
+        stageLogbookEnsureNoDuplicate(
+            $pdo,
+            $studentId,
+            $rotationId,
+            $dateJournal
+        );
 
         $pdo->prepare("
             INSERT INTO stage_logbook_entries(
@@ -244,7 +243,7 @@ try{
             $assignmentId,
             $studentId,
             (int)$rotation['host_etablissement_id'],
-            $today,
+            $dateJournal,
             $resume,
             $apprentissages!==''?$apprentissages:null,
             $difficultes!==''?$difficultes:null,
@@ -291,6 +290,22 @@ try{
         ]
     );
 
+}catch(StageLogbookValidationException $e){
+    jsonResponse(false,$e->getMessage(),[],422);
+}catch(PDOException $e){
+    if(stageLogbookIsDuplicateError($e)){
+        jsonResponse(
+            false,
+            'Une entrée de journal existe déjà pour cette rotation à cette date.',
+            [],
+            422
+        );
+    }
+    error_log(
+        '[STUDENT LOGBOOK SAVE] '.$e->getMessage().
+        ' | '.$e->getFile().':'.$e->getLine()
+    );
+    jsonResponse(false,'Erreur lors de l’enregistrement du journal.',[],500);
 }catch(Throwable $e){
     error_log(
         '[STUDENT LOGBOOK SAVE] '.$e->getMessage().

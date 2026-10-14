@@ -3,7 +3,7 @@
  * Endpoint AJAX de création ou modification d'un appareil de pointage.
  * Une clé API n'est affichée qu'au moment précis de la création.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 /* Dépendances pour la persistance, la réponse JSON et la génération d'identifiants. */
 require_once __DIR__.'/../../config/database.php';

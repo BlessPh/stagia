@@ -8,7 +8,7 @@ if($uuid==='')apiResponse(false,'Document invalide.',[],422);
 try{
     $data=certificateData($pdo,$uuid);
     if(!$data||(int)$data['student_id']!==(int)$student['student_id'])apiResponse(false,'Document introuvable.',[],404);
-    if(($data['statut']??'')!=='GENERE'||($data['completion_status']??'')!=='VALIDE')apiResponse(false,"Ce document n'est pas disponible.",[],409);
+    if(!certificateIsAvailable($data))apiResponse(false,"Ce document n'est pas disponible avant la validation universitaire des résultats.",[],409);
     $projectRoot=realpath(dirname(__DIR__,3));
     $storageRoot=realpath(dirname(__DIR__,3).'/storage/certificates');
     $stored=$projectRoot&&!empty($data['fichier'])?realpath($projectRoot.'/'.ltrim((string)$data['fichier'],'/\\')):false;

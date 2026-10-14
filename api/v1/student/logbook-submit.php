@@ -2,6 +2,7 @@
 
 require_once __DIR__.'/../api-auth.php';
 require_once __DIR__.'/../../../includes/student-logbook-api.php';
+require_once __DIR__.'/../../../includes/stage-logbook-rules.php';
 
 requireApiMethod('POST');
 
@@ -136,6 +137,10 @@ try{
             a.uuid AS assignment_uuid,
             a.statut AS assignment_status,
 
+            rot.date_debut AS rotation_start,
+            rot.date_fin AS rotation_end,
+            rot.statut AS rotation_status,
+
             comp.statut AS completion_status
 
         FROM stage_logbook_entries le
@@ -160,6 +165,9 @@ try{
 
         LEFT JOIN stage_completions comp
             ON comp.assignment_id=a.id
+
+        LEFT JOIN stage_rotations rot
+            ON rot.id=le.rotation_id
 
         WHERE le.uuid=?
           AND se.student_id=?
@@ -274,10 +282,22 @@ try{
 
     if($status!=='BROUILLON'){
 
-        throw new RuntimeException(
-            'Seul un journal en brouillon peut être soumis.'
+        throw new StageLogbookValidationException(
+            'Seul un brouillon peut être soumis.'
         );
     }
+
+    $entryDate=(string)studentLogbookApiPick(
+        $entry,
+        ['date_journal','date_journee','entry_date','date_activite','date_stage','date'],
+        ''
+    );
+    stageLogbookValidateRotationDate(
+        $entryDate,
+        $entry['rotation_start']??null,
+        $entry['rotation_end']??null,
+        $entry['rotation_status']??null
+    );
 
     $summary='';
     foreach(['resume_activites','resume','summary','description','observation'] as $column){
@@ -287,7 +307,7 @@ try{
         }
     }
     if($summary===''){
-        throw new RuntimeException('Completez le resume avant de soumettre.');
+        throw new StageLogbookValidationException('Complétez le résumé avant de soumettre.');
     }
 
 
@@ -334,7 +354,7 @@ try{
 
     if($activitiesCount<=0){
 
-        throw new RuntimeException(
+        throw new StageLogbookValidationException(
             'Ajoutez au moins une activité avant de soumettre le journal.'
         );
     }
@@ -382,6 +402,11 @@ try{
         $sets[]='validated_by=NULL';
     }
 
+    if(isset($entryColumns['commentaire_encadreur'])){
+
+        $sets[]='commentaire_encadreur=NULL';
+    }
+
 
     if(isset($entryColumns['updated_by'])){
 
@@ -427,10 +452,18 @@ try{
 
     apiResponse(
         true,
-        'Journal soumis pour validation.',
+        'Journal soumis à l’encadreur.',
         ['entry'=>$publicEntry]
     );
 
+
+}catch(StageLogbookValidationException $e){
+
+    if($pdo->inTransaction()){
+        $pdo->rollBack();
+    }
+
+    apiResponse(false,$e->getMessage(),[],422);
 
 }catch(Throwable $e){
 

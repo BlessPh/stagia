@@ -1,8 +1,8 @@
 # API étudiant — des campagnes aux rotations
 
-Version 1.6.1 — mise à jour le 9 octobre 2026.
+Version 1.9.0 — mise à jour le 13 octobre 2026.
 
-Cette documentation couvre le parcours mobile d’un étudiant depuis la consultation des campagnes ouvertes jusqu’à la consultation de ses affectations et rotations.
+Cette documentation couvre le parcours mobile d’un étudiant depuis la consultation des campagnes ouvertes jusqu’aux résultats universitaires et aux documents de fin de stage.
 
 ## Conventions générales
 
@@ -62,6 +62,12 @@ Campagne ouverte
   → Admission à l’hôpital
   → Affectation dans un département
   → Rotations planifiées dans les services
+  → Évaluations finales
+  → Mini-jurys départementaux
+  → Délibération finale hospitalière
+  → Transmission et validation universitaire
+  → Clôture hospitalière définitive
+  → Attestation disponible
 ```
 
 ## Catalogue des statuts
@@ -80,6 +86,12 @@ Campagne ouverte
 | Affectation | `PLANIFIEE`, `ACTIVE`, `TERMINEE`, `ANNULEE` |
 | Rotation | `PLANIFIEE`, `ACTIVE`, `TERMINEE`, `ANNULEE` |
 | Clôture du stage | `EN_PREPARATION`, `PRET`, `VALIDE`, `REFUSE`, `ANNULE` |
+| Transmission universitaire | `NON_TRANSMIS`, `ENVOYE`, `RECU`, `VALIDE`, `ARCHIVE` |
+| Décision de résultat | `VALIDE`, `A_REPRENDRE`, `AJOURNE`, `NON_VALIDE` (historique) |
+| Document de fin de stage | `GENERE`, `ANNULE` |
+| Rapport de stage | `SOUMIS`, `RECU`, `ACCEPTE`, `A_CORRIGER`, `REJETE`, `ARCHIVE` |
+| Type de justification | `NON_DEMARRAGE`, `INTERRUPTION` |
+| Décision de justification | `EN_ATTENTE`, `ACCEPTEE`, `REJETEE` |
 
 Les statuts synthétiques du workflow sont :
 
@@ -101,6 +113,8 @@ Les statuts synthétiques du workflow sont :
 
 | Méthode | Route | Fonction |
 |---|---|---|
+| `POST` | `/login` | Authentifier l’étudiant avec limitation des tentatives et réactivation éventuelle du compte |
+| `GET` | `/student/dashboard` | Charger la synthèse mobile du parcours de stage |
 | `GET` | `/student/stage-options` | Voir les campagnes ouvertes et les hôpitaux disponibles |
 | `POST` | `/student/reservations` | Créer une candidature et une réservation temporaire |
 | `GET` | `/student/applications` | Consulter les candidatures avec filtres |
@@ -124,6 +138,19 @@ Les statuts synthétiques du workflow sont :
 | `GET` | `/student/feedbacks` | Consulter les feedbacks filtrables sans lecture automatique |
 | `POST` | `/student/feedbacks/{uuid}/read` | Marquer explicitement un feedback comme lu |
 | `GET` | `/student/evaluations` | Consulter les évaluations filtrables et leur évaluateur |
+| `GET` | `/student/completions` | Consulter les clôtures hospitalières de ses stages |
+| `GET` | `/student/results` | Consulter ses résultats et leur validation universitaire |
+| `GET` | `/student/documents` | Consulter ses attestations et certificats filtrables |
+| `GET` | `/student/certificates/{uuid}/file` | Afficher ou télécharger une attestation disponible |
+| `POST` | `/student/stage-reports` | Soumettre une nouvelle version d’un rapport de stage |
+| `GET` | `/student/stage-reports` | Consulter l’historique des rapports envoyés |
+| `GET` | `/student/stage-reports/{uuid}` | Consulter un rapport précis |
+| `GET` | `/student/stage-reports/{uuid}/file` | Afficher ou télécharger le fichier soumis |
+| `GET` | `/student/stage-justifications` | Consulter les situations et justifications de stage |
+| `POST` | `/student/stage-justifications` | Déposer ou renvoyer une justification |
+| `GET` | `/student/stage-justifications/{uuid}/file` | Afficher ou télécharger le justificatif |
+| `POST` | `/student/stage-justifications/{uuid}/read` | Marquer la décision comme lue |
+| `POST` | `/student/account/deactivate` | Désactiver le compte et programmer sa suppression à 30 jours |
 
 ---
 
@@ -137,6 +164,34 @@ Les statuts synthétiques du workflow sont :
 6. L’application appelle périodiquement `POST /student/payments/sync` pour relire cet état jusqu’à obtenir un résultat terminal. Une notification est également créée après confirmation ou échec.
 
 `initiate` ne doit donc jamais être interprété comme une réussite financière. Le webhook est la source de l’issue finale et `sync` restitue l’état enregistré par ce webhook.
+
+## 0A. Authentifier l’étudiant
+
+```http
+POST /api/v1/login
+Content-Type: application/json
+
+{
+  "identifiant": "STG-ETU-00000030",
+  "password": "mot-de-passe",
+  "device_name": "Android"
+}
+```
+
+La connexion reste réservée à un compte actif possédant le rôle `STAGIAIRE`. Les échecs répétés déclenchent un blocage temporaire avec le code `429` et l’en-tête `Retry-After`.
+
+Si l’étudiant avait demandé la suppression de son compte et se reconnecte avant `delete_after`, la demande est annulée et la réponse contient `account_reactivated: true`. Une suppression déjà exécutée produit le code `410`.
+
+## 0B. Charger le tableau de bord
+
+```http
+GET /api/v1/student/dashboard
+```
+
+La réponse fournit le profil, les compteurs, le stage courant et sa progression. Depuis la version `1.9` :
+
+- `note_finale` reste `null` tant que la clôture du stage n’est pas `VALIDE` ;
+- un certificat n’est compté ou affiché comme disponible qu’après validation universitaire du résultat.
 
 ## 1. Voir les campagnes ouvertes
 
@@ -360,6 +415,8 @@ GET /api/v1/student/applications?status=SOUMISE,ACCEPTEE&workflow_status=EN_ATTE
 ```
 
 `stats` décrit l’ensemble de l’historique, tandis que `total` et `pagination` concernent le résultat filtré.
+
+`note_finale` reste `null` tant que `completion_status` n’est pas `VALIDE`. Une note intermédiaire ou une délibération non encore validée ne doit donc pas être affichée comme résultat officiel.
 
 ## 4. Consulter les réservations
 
@@ -821,6 +878,8 @@ GET /api/v1/student/admissions?reservation_uuid=24e27142-f88d-4655-b7db-1ae4f27e
 
 Les objets `placement`, `admission` et `assignment` contiennent toujours le champ `exists`, ce qui permet à l’interface d’afficher l’étape courante sans déductions fragiles.
 
+Dans `completion`, `final_score` reste `null` tant que `completion.status` n’est pas `VALIDE`.
+
 ## 11. Consulter les affectations et rotations
 
 ```http
@@ -986,6 +1045,8 @@ GET /api/v1/student/stages?status=PLANIFIEE,ACTIVE&rotation_status=PLANIFIEE,ACT
 3. identifiant croissant.
 
 `planning.current_rotation` désigne la rotation active à la date courante et `planning.next_rotation` la prochaine rotation planifiée.
+
+La propriété `note_finale` reste `null` tant que `completion_status` n’est pas `VALIDE`.
 
 ### Règles d’intégrité
 
@@ -1389,7 +1450,7 @@ Réponse `200` :
           }
         ],
         "activities_count": 1,
-        "rotation": {"uuid": "rotation-uuid", "sequence": 1},
+        "rotation": {"uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}},
         "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "start_date": "2026-10-01", "end_date": "2026-10-31"},
         "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"},
         "hospital": {"code": "HOP-001", "name": "Hôpital Général"},
@@ -1422,12 +1483,22 @@ POST /api/v1/student/logbook
 POST /api/v1/student/logbook/{logbook_uuid}/submit
 ```
 
+Le corps d’enregistrement contient `assignment_uuid`, `date`, `summary` et `activities`. `rotation_uuid` peut être transmis pour sélectionner explicitement la rotation; sans lui, la rotation correspondant à la date est résolue automatiquement. Une rotation `ACTIVE` ou `TERMINEE` est acceptée. La date doit rester dans sa période, ne peut pas être future et ne peut pas dupliquer une entrée existante de la même rotation.
+
+Règles supplémentaires de la version `1.9` :
+
+- une seule entrée est permise par étudiant, rotation et date ;
+- le résumé est obligatoire et la soumission exige au moins une activité ;
+- une modification remet à zéro l’ancienne validation et le commentaire de l’encadreur ;
+- `can_submit` tient compte du statut et de la période de rotation ;
+- une erreur de validation du journal retourne `422`.
+
 Après une création, une modification ou une soumission, la réponse contient désormais :
 
 ```json
 {
   "success": true,
-  "message": "Journal enregistré en brouillon.",
+  "message": "Brouillon du journal enregistré.",
   "data": {
     "entry": {
       "uuid": "logbook-uuid",
@@ -1472,7 +1543,7 @@ Réponse `200` après `POST /student/logbook/{logbook_uuid}/submit` :
 ```json
 {
   "success": true,
-  "message": "Journal soumis pour validation.",
+  "message": "Journal soumis à l’encadreur.",
   "data": {
     "entry": {
       "uuid": "logbook-uuid",
@@ -1676,6 +1747,400 @@ Réponse `200` :
     }
   }
 }
+```
+
+## 23. Consulter les clôtures hospitalières
+
+```http
+GET /api/v1/student/completions?status=PRET,VALIDE&assignment_uuid={uuid}&campaign_uuid={uuid}&hospital_id=24&date_from=2026-10-01&date_to=2026-10-31&page=1&per_page=20
+```
+
+Filtres disponibles : `status`/`statuses`, `assignment_uuid`, `campaign_uuid`, `hospital_id`, `date_from`, `date_to`, `page` et `per_page`.
+
+Cette collection est strictement informative. `readiness.blockers` explique ce qui empêche encore la clôture, mais aucune action de validation n’est fournie à l’étudiant.
+
+Les blocages couvrent désormais la fin de période, les rotations, les présences, les journaux, les évaluations finales, la délibération finale hospitalière et la validation universitaire. Chaque élément expose `final_deliberation` et `university_validation`. `score` reste `null` tant que la clôture n’est pas `VALIDE`.
+
+Réponse `200` :
+
+```json
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "items": [{
+      "uuid": "completion-uuid",
+      "status": "VALIDE",
+      "score": 80,
+      "attendance_rate": 92.5,
+      "final_appreciation": "Stage satisfaisant.",
+      "decision_comment": null,
+      "prepared_at": "2026-10-30 15:00:00",
+      "validated_at": "2026-10-31 10:00:00",
+      "final_deliberation": {"status": "VALIDEE", "date": "2026-10-31", "validated_at": "2026-10-31 09:00:00"},
+      "university_validation": {"status": "VALIDE", "validated_at": "2026-11-01 09:00:00"},
+      "progress": {
+        "rotations": {"total": 4, "completed": 4},
+        "attendance": {"records": 24, "covered_rotations": 4},
+        "logbook": {"total": 12, "validated": 12, "covered_rotations": 4},
+        "final_evaluations": {"completed_rotations": 4}
+      },
+      "readiness": {"ready": true, "blockers": []},
+      "validator": {"user_id": 31, "name": "Administrateur Hôpital"},
+      "assignment": {"uuid": "assignment-uuid", "status": "TERMINEE", "start_date": "2026-10-01", "end_date": "2026-10-31"},
+      "campaign": {"uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage clinique 2026"},
+      "hospital": {"id": 24, "code": "HOP-001", "name": "Hôpital Général", "phone": "+243000000000", "email": "contact@hopital.cd"},
+      "department": {"id": 7, "code": "DEP-PED", "name": "Pédiatrie", "type": "DEPARTEMENT"}
+    }],
+    "stats": {
+      "total": 1,
+      "by_status": {"EN_PREPARATION": 0, "PRET": 0, "VALIDE": 1, "REFUSE": 0, "ANNULE": 0},
+      "ready": 0,
+      "validated": 1,
+      "average_score": 80,
+      "average_attendance_rate": 92.5
+    },
+    "pagination": {"page": 1, "per_page": 20, "total": 1, "pages": 1, "from": 1, "to": 1},
+    "filters": {"statuses": ["PRET", "VALIDE"], "assignment_uuid": null, "campaign_uuid": null, "hospital_id": null, "date_from": null, "date_to": null},
+    "available_filters": {"statuses": ["EN_PREPARATION", "PRET", "VALIDE", "REFUSE", "ANNULE"], "per_page_max": 100}
+  }
+}
+```
+
+## 24. Consulter les résultats et leur validation universitaire
+
+```http
+GET /api/v1/student/results?decision=VALIDE&transmission_status=RECU,VALIDE,ARCHIVE&assignment_uuid={uuid}&campaign_uuid={uuid}&hospital_id=24&page=1&per_page=20
+```
+
+Filtres disponibles : `decision`/`decisions`, `transmission_status`/`transmission_statuses`, `assignment_uuid`, `campaign_uuid`, `hospital_id`, `page` et `per_page`.
+
+`administrative_process.student_action_required` vaut toujours `false`. La note et la décision viennent de la délibération finale et ne sont exposées comme résultat officiel qu'après validation universitaire. Les statuts synthétiques possibles sont `AWAITING_FINAL_DELIBERATION`, `AWAITING_TRANSMISSION`, `AWAITING_UNIVERSITY_RECEIPT`, `AWAITING_UNIVERSITY_VALIDATION`, `AWAITING_HOSPITAL_CLOSURE` et `COMPLETED`.
+
+Avant cette validation, `decision`, `score` et `appreciation` restent `null`. `result_source` vaut `FINAL_DELIBERATION` pour le nouveau circuit ou `LEGACY_CLOSURE` pour une ancienne clôture compatible. Les décisions filtrables sont `VALIDE`, `A_REPRENDRE`, `AJOURNE` et `NON_VALIDE`.
+
+Réponse `200` :
+
+```json
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "items": [{
+      "decision": "VALIDE",
+      "score": 80,
+      "attendance_rate": 92.5,
+      "appreciation": "Présence 92.5% · Journaux validés 12/12 · Note 80%",
+      "result_source": "FINAL_DELIBERATION",
+      "metrics": {"rotations": 4, "attendance_records": 24, "present": 21, "late": 1, "absent": 1, "justified": 1, "guard": 0, "logbook_entries": 12, "validated_logbook_entries": 12, "evaluations": 4},
+      "administrative_process": {
+        "status": "COMPLETED",
+        "student_action_required": false,
+        "final_deliberation": {"status": "VALIDEE", "date": "2026-10-31", "validated_at": "2026-10-31 09:00:00", "result_available": true},
+        "hospital_closure": {"status": "VALIDE", "validated_at": "2026-10-31 10:00:00"},
+        "university_transmission": {"uuid": "transmission-uuid", "status": "VALIDE", "transmitted_at": "2026-10-31 11:00:00", "received_at": "2026-10-31 12:00:00", "validated_at": "2026-11-01 09:00:00", "archived_at": null}
+      },
+      "assignment": {"uuid": "assignment-uuid", "status": "TERMINEE", "start_date": "2026-10-01", "end_date": "2026-10-31"},
+      "campaign": {"uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage clinique 2026"},
+      "hospital": {"id": 24, "code": "HOP-001", "name": "Hôpital Général"},
+      "department": {"id": 7, "code": "DEP-PED", "name": "Pédiatrie", "type": "DEPARTEMENT"},
+      "document": {"uuid": "certificate-uuid", "reference": "ATT-2026-12345", "type": "ATTESTATION_STAGE", "status": "GENERE", "available": true, "generated_at": "2026-11-01 09:00:01", "file_endpoint": "/api/v1/student/certificates/certificate-uuid/file", "download_endpoint": "/api/v1/student/certificates/certificate-uuid/file?download=1"}
+    }],
+    "stats": {
+      "total": 1,
+      "by_decision": {"VALIDE": 1, "A_REPRENDRE": 0, "AJOURNE": 0, "NON_VALIDE": 0},
+      "by_transmission_status": {"NON_TRANSMIS": 0, "ENVOYE": 0, "RECU": 0, "VALIDE": 1, "ARCHIVE": 0},
+      "average_score": 80,
+      "average_attendance_rate": 92.5,
+      "documents_available": 1
+    },
+    "pagination": {"page": 1, "per_page": 20, "total": 1, "pages": 1, "from": 1, "to": 1},
+    "filters": {"decisions": ["VALIDE"], "transmission_statuses": ["RECU", "VALIDE", "ARCHIVE"], "assignment_uuid": null, "campaign_uuid": null, "hospital_id": null},
+    "available_filters": {"decisions": ["VALIDE", "A_REPRENDRE", "AJOURNE", "NON_VALIDE"], "transmission_statuses": ["NON_TRANSMIS", "ENVOYE", "RECU", "VALIDE", "ARCHIVE"], "per_page_max": 100}
+  }
+}
+```
+
+## 25. Consulter les documents de fin de stage
+
+```http
+GET /api/v1/student/documents?type=ATTESTATION_STAGE&status=GENERE&available=true&assignment_uuid={uuid}&campaign_uuid={uuid}&page=1&per_page=20
+```
+
+Filtres disponibles : `type`/`types`, `status`/`statuses`, `available`, `assignment_uuid`, `campaign_uuid`, `page` et `per_page`.
+
+Chaque document contient son stage, sa campagne, l’hôpital, l’université et son unité. `file_endpoint` et `download_endpoint` restent `null` tant que la clôture hospitalière et les résultats universitaires ne sont pas validés.
+
+La réponse contient `items`, `stats`, `pagination`, `filters` et `available_filters`. Les compteurs distinguent `available`, `cancelled` et `pending_validation`.
+
+Réponse `200` :
+
+```json
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "items": [{
+      "uuid": "certificate-uuid",
+      "reference": "ATT-2026-12345",
+      "type_document": "ATTESTATION_STAGE",
+      "status": "GENERE",
+      "available": true,
+      "university_result_status": "VALIDE",
+      "availability_reason": null,
+      "generated_at": "2026-11-01 09:00:01",
+      "stage": {"assignment_uuid": "assignment-uuid", "start_date": "2026-10-01", "end_date": "2026-10-31", "note_finale": 80, "taux_presence": 92.5, "validated_at": "2026-10-31 10:00:00"},
+      "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"},
+      "hospital": {"code": "HOP-001", "name": "Hôpital Général"},
+      "university": {"code": "UNI-001", "name": "Université Exemple"},
+      "unit": {"code": "DEP-PED", "name": "Pédiatrie"},
+      "file_endpoint": "/api/v1/student/certificates/certificate-uuid/file",
+      "download_endpoint": "/api/v1/student/certificates/certificate-uuid/file?download=1",
+      "requires_bearer": true,
+      "verification_url": "/verification-attestation.php?token=certificate-uuid"
+    }],
+    "stats": {"total": 1, "attestations": 1, "certificates": 0, "available": 1, "cancelled": 0, "pending_validation": 0},
+    "pagination": {"page": 1, "per_page": 20, "total": 1, "pages": 1, "from": 1, "to": 1},
+    "filters": {"types": ["ATTESTATION_STAGE"], "statuses": ["GENERE"], "available": true, "assignment_uuid": null, "campaign_uuid": null},
+    "available_filters": {"types": ["ATTESTATION_STAGE", "CERTIFICAT_STAGE"], "statuses": ["GENERE", "ANNULE"], "available": [true, false], "per_page_max": 100}
+  }
+}
+```
+
+## 26. Afficher ou télécharger une attestation
+
+```http
+GET /api/v1/student/certificates/{uuid}/file
+GET /api/v1/student/certificates/{uuid}/file?download=1
+```
+
+La route retourne le fichier uniquement s’il appartient à l’étudiant authentifié, si sa clôture est `VALIDE`, si la transmission universitaire est `VALIDE` ou `ARCHIVE`, et si le document est `GENERE`. Sinon elle retourne `404` ou `409`.
+
+Réponse `200` : flux `application/pdf` ou `text/html`. Avec `download=1`, l’en-tête `Content-Disposition` passe de `inline` à `attachment`.
+
+Réponse d’erreur JSON :
+
+```json
+{
+  "success": false,
+  "message": "Ce document n'est pas disponible avant la validation universitaire des résultats.",
+  "data": []
+}
+```
+
+## Frontière administrative
+
+Ces quatre routes sont exclusivement consultatives. Aucun endpoint étudiant ne permet de clôturer un stage, transmettre, recevoir, valider ou archiver des résultats, ni de générer ou annuler une attestation.
+
+## 27. Soumettre un rapport de stage
+
+```http
+POST /api/v1/student/stage-reports
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+```
+
+Champs : `assignment_uuid` obligatoire, `report` (ou `file`) obligatoire, `title` et `description` facultatifs. Formats acceptés : PDF, DOC et DOCX, avec une taille maximale de 15 Mo.
+
+Chaque nouvelle soumission crée une version immuable rattachée à l’affectation et à l’université propriétaire de la campagne. La réponse `201` contient le rapport complet, son numéro de version et ses liens de consultation.
+
+## 28. Consulter l’historique des rapports
+
+Réponse `201` attendue :
+
+```json
+{
+  "success": true,
+  "message": "Rapport de stage soumis a votre universite.",
+  "data": {
+    "report": {
+      "uuid": "report-uuid",
+      "version": 1,
+      "title": "Rapport de stage",
+      "status": "SOUMIS",
+      "submitted_at": "2026-10-13 14:30:00",
+      "assignment": { "uuid": "assignment-uuid", "status": "ACTIVE" },
+      "campaign": { "uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage clinique 2026" },
+      "hospital": { "id": 7, "code": "HOP-001", "name": "Hopital General" },
+      "university": { "id": 3, "code": "UNI-001", "name": "Universite Exemple" },
+      "file": { "original_name": "rapport.pdf", "mime_type": "application/pdf", "extension": "pdf", "size": 524288 },
+      "detail_endpoint": "/api/v1/student/stage-reports/report-uuid",
+      "file_endpoint": "/api/v1/student/stage-reports/report-uuid/file"
+    }
+  }
+}
+```
+
+```http
+GET /api/v1/student/stage-reports?status=SOUMIS,A_CORRIGER&assignment_uuid={uuid}&campaign_uuid={uuid}&date_from=2026-01-01&date_to=2026-12-31&page=1&per_page=20
+```
+
+Filtres : `status`/`statuses`, `assignment_uuid`, `campaign_uuid`, `date_from`, `date_to`, `page` et `per_page`. La collection contient `items`, `stats`, `pagination`, `filters` et `available_filters`.
+
+## 29. Récupérer un rapport précis
+
+Réponse attendue :
+
+```json
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "items": [{ "uuid": "report-uuid", "version": 1, "title": "Rapport de stage", "status": "SOUMIS" }],
+    "stats": { "total": 1, "by_status": { "SOUMIS": 1, "RECU": 0, "ACCEPTE": 0, "A_CORRIGER": 0, "REJETE": 0, "ARCHIVE": 0 }, "assignments": 1 },
+    "pagination": { "page": 1, "per_page": 20, "total": 1, "pages": 1, "from": 1, "to": 1 },
+    "filters": { "statuses": ["SOUMIS"], "assignment_uuid": null, "campaign_uuid": null, "date_from": null, "date_to": null },
+    "available_filters": { "statuses": ["SOUMIS", "RECU", "ACCEPTE", "A_CORRIGER", "REJETE", "ARCHIVE"], "per_page_max": 100 }
+  }
+}
+```
+
+```http
+GET /api/v1/student/stage-reports/{uuid}
+```
+
+La route retourne les métadonnées, le statut universitaire, le commentaire éventuel, la version, l’affectation, la campagne, l’hôpital, l’université et les liens du fichier. Un étudiant ne peut consulter que ses propres rapports.
+
+## 30. Afficher ou télécharger le fichier d’un rapport
+
+```http
+GET /api/v1/student/stage-reports/{uuid}/file
+GET /api/v1/student/stage-reports/{uuid}/file?download=1
+```
+
+La première forme utilise `inline`; `download=1` utilise `attachment`. Le jeton Bearer est obligatoire.
+
+## 31. Consulter les situations et justifications de stage
+
+```http
+GET /api/v1/student/stage-justifications
+```
+
+La collection retourne les stages de l’étudiant, la situation calculée, la justification éventuelle, les statistiques, les valeurs autorisées et les actions disponibles. La lecture de la collection ne marque jamais automatiquement une décision comme lue.
+
+```json
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "items": [{
+      "assignment_uuid": "assignment-uuid",
+      "situation": "INTERRUPTION",
+      "allowed_type": "INTERRUPTION",
+      "justification_uuid": "justification-uuid",
+      "justification_status": "EN_ATTENTE",
+      "reason": "MALADIE",
+      "explanation": null,
+      "decision_seen": false,
+      "file_endpoint": "/api/v1/student/stage-justifications/justification-uuid/file",
+      "read_endpoint": "/api/v1/student/stage-justifications/justification-uuid/read"
+    }],
+    "stats": {},
+    "allowed_values": {
+      "types": ["NON_DEMARRAGE", "INTERRUPTION"],
+      "reasons": ["MALADIE", "ACCIDENT", "CONTRAINTE_FAMILIALE", "AUTRE"],
+      "statuses": ["EN_ATTENTE", "ACCEPTEE", "REJETEE"]
+    }
+  }
+}
+```
+
+## 32. Déposer ou renvoyer une justification
+
+```http
+POST /api/v1/student/stage-justifications
+Content-Type: multipart/form-data
+```
+
+Champs :
+
+- `assignment_uuid` : affectation concernée ;
+- `type_situation` : `NON_DEMARRAGE` ou `INTERRUPTION`, conformément à `allowed_type` ;
+- `motif` : valeur retournée dans `allowed_values.reasons` ;
+- `explication` : obligatoire lorsque le motif vaut `AUTRE` ;
+- `document` : PDF, JPG ou PNG facultatif, limité à 8 Mo.
+
+La route accepte aussi un corps JSON lorsqu’aucun fichier n’est transmis. Un nouvel envoi met à jour la justification existante et la replace en attente. Une justification `ACCEPTEE` ne peut plus être modifiée.
+
+```json
+{
+  "success": true,
+  "message": "Justification enregistrée.",
+  "data": {
+    "justification": {
+      "assignment_uuid": "assignment-uuid",
+      "justification_uuid": "justification-uuid",
+      "justification_status": "EN_ATTENTE",
+      "reason": "MALADIE",
+      "file_endpoint": "/api/v1/student/stage-justifications/justification-uuid/file"
+    }
+  }
+}
+```
+
+## 33. Afficher ou télécharger un justificatif
+
+```http
+GET /api/v1/student/stage-justifications/{uuid}/file
+GET /api/v1/student/stage-justifications/{uuid}/file?download=1
+```
+
+La réponse est un flux PDF, JPEG ou PNG. L’appartenance du document à l’étudiant authentifié est toujours vérifiée. `download=1` force le téléchargement.
+
+## 34. Marquer la décision comme lue
+
+```http
+POST /api/v1/student/stage-justifications/{uuid}/read
+```
+
+Cette action est disponible uniquement après une décision `ACCEPTEE` ou `REJETEE`.
+
+```json
+{
+  "success": true,
+  "message": "Décision marquée comme lue.",
+  "data": {"uuid": "justification-uuid"}
+}
+```
+
+## 35. Désactiver et programmer la suppression du compte
+
+```http
+POST /api/v1/student/account/deactivate
+Content-Type: application/json
+
+{
+  "password": "mot-de-passe-actuel",
+  "confirmation": "DESACTIVER"
+}
+```
+
+La route suspend immédiatement le compte et le profil mobile, révoque tous les jetons API et désactive les appareils de notification. `delete_after` vaut exactement 30 jours après la demande.
+
+Une connexion avec le bon mot de passe avant `delete_after` annule automatiquement la demande et réactive le compte. Après l’échéance, le traitement anonymise le compte, détache le profil académique, révoque les rôles et conserve les historiques institutionnels.
+
+Le traitement planifié doit exécuter :
+
+Réponse attendue :
+
+```json
+{
+  "success": true,
+  "message": "Compte desactive. Sa suppression est programmee dans 30 jours.",
+  "data": {
+    "deletion_request": {
+      "uuid": "deletion-request-uuid",
+      "status": "PENDING",
+      "requested_at": "2026-10-13 15:00:00",
+      "delete_after": "2026-11-12 15:00:00",
+      "grace_period_days": 30
+    }
+  }
+}
+```
+
+```powershell
+php bin/process-account-deletions.php
 ```
 
 ## Notifications liées au parcours

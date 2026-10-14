@@ -9,8 +9,39 @@ $student=requireApiStudent($pdo);
 
 $studentId=(int)$student['student_id'];
 
+$allowedTypes=['ATTESTATION_STAGE','CERTIFICAT_STAGE'];
+$allowedStatuses=['GENERE','ANNULE'];
+$parseList=static function(mixed $value):array{
+    $values=is_array($value)?$value:explode(',',(string)$value);
+    return array_values(array_unique(array_filter(array_map(
+        static fn($item):string=>strtoupper(trim((string)$item)),
+        $values
+    ))));
+};
+$types=$parseList($_GET['type']??$_GET['types']??[]);
+$statuses=$parseList($_GET['status']??$_GET['statuses']??[]);
+if($invalid=array_values(array_diff($types,$allowedTypes)))apiResponse(false,'Filtre type invalide : '.implode(', ',$invalid).'.',['allowed_values'=>$allowedTypes],422);
+if($invalid=array_values(array_diff($statuses,$allowedStatuses)))apiResponse(false,'Filtre status invalide : '.implode(', ',$invalid).'.',['allowed_values'=>$allowedStatuses],422);
+
+$availableFilter=null;
+if(array_key_exists('available',$_GET)){
+    $rawAvailable=strtolower(trim((string)$_GET['available']));
+    if(!in_array($rawAvailable,['1','0','true','false'],true))apiResponse(false,'Filtre available invalide. Valeurs attendues : true ou false.',[],422);
+    $availableFilter=in_array($rawAvailable,['1','true'],true);
+}
+$assignmentUuid=trim((string)($_GET['assignment_uuid']??''));
+$campaignUuid=trim((string)($_GET['campaign_uuid']??''));
+$page=max(1,(int)($_GET['page']??1));
+$perPage=max(1,min(100,(int)($_GET['per_page']??20)));
 
 try{
+
+    $where=['cert.student_id=?'];
+    $params=[$studentId];
+    if($types){$where[]='cert.type_document IN('.implode(',',array_fill(0,count($types),'?')).')';array_push($params,...$types);}
+    if($statuses){$where[]='cert.statut IN('.implode(',',array_fill(0,count($statuses),'?')).')';array_push($params,...$statuses);}
+    if($assignmentUuid!==''){$where[]='a.uuid=?';$params[]=$assignmentUuid;}
+    if($campaignUuid!==''){$where[]='c.uuid=?';$params[]=$campaignUuid;}
 
     $stmt=$pdo->prepare("
         SELECT
@@ -27,6 +58,16 @@ try{
             comp.note_finale,
             comp.taux_presence,
             comp.validated_at,
+
+            (
+                SELECT t.statut
+                FROM stage_result_items ri
+                INNER JOIN stage_result_transmissions t ON t.id=ri.transmission_id
+                WHERE ri.assignment_id=comp.assignment_id
+                  AND t.statut IN('VALIDE','ARCHIVE')
+                ORDER BY COALESCE(t.validated_at,t.archived_at,t.updated_at,t.created_at) DESC,t.id DESC
+                LIMIT 1
+            ) AS university_result_status,
 
             a.uuid AS assignment_uuid,
             a.date_debut,
@@ -64,7 +105,7 @@ try{
         INNER JOIN etablissements uni
             ON uni.id=c.owner_etablissement_id
 
-        WHERE cert.student_id=?
+        WHERE ".implode(' AND ',$where)."
 
         ORDER BY
             cert.generated_at DESC,
@@ -72,9 +113,7 @@ try{
     ");
 
 
-    $stmt->execute([
-        $studentId
-    ]);
+    $stmt->execute($params);
 
 
     $rows=$stmt->fetchAll(
@@ -95,7 +134,9 @@ try{
 
         'available'=>0,
 
-        'cancelled'=>0
+        'cancelled'=>0,
+
+        'pending_validation'=>0
     ];
 
 
@@ -104,7 +145,11 @@ try{
         $available=
             $row['statut']==='GENERE'
             &&
-            $row['completion_status']==='VALIDE';
+            $row['completion_status']==='VALIDE'
+            &&
+            in_array($row['university_result_status'],['VALIDE','ARCHIVE'],true);
+
+        if($availableFilter!==null&&$available!==$availableFilter)continue;
 
 
         if(
@@ -131,9 +176,13 @@ try{
 
             $stats['available']++;
 
-        }else{
+        }elseif($row['statut']==='ANNULE'){
 
             $stats['cancelled']++;
+
+        }else{
+
+            $stats['pending_validation']++;
         }
 
 
@@ -184,6 +233,12 @@ try{
 
             'available'=>
                 $available,
+
+            'university_result_status'=>$row['university_result_status'],
+
+            'availability_reason'=>$available
+                ?null
+                :'Le document sera disponible après validation des résultats par l’université.',
 
             'generated_at'=>
                 $row['generated_at'],
@@ -279,14 +334,44 @@ try{
     }
 
 
+    $total=count($items);
+    $pages=max(1,(int)ceil($total/$perPage));
+    if($page>$pages)$page=$pages;
+    $offset=($page-1)*$perPage;
+    $pageItems=array_slice($items,$offset,$perPage);
+
     apiResponse(
         true,
         '',
         [
 
-            'items'=>$items,
+            'items'=>$pageItems,
 
-            'stats'=>$stats
+            'stats'=>$stats,
+
+            'pagination'=>[
+                'page'=>$page,
+                'per_page'=>$perPage,
+                'total'=>$total,
+                'pages'=>$pages,
+                'from'=>$total?$offset+1:0,
+                'to'=>$total?$offset+count($pageItems):0
+            ],
+
+            'filters'=>[
+                'types'=>$types,
+                'statuses'=>$statuses,
+                'available'=>$availableFilter,
+                'assignment_uuid'=>$assignmentUuid?:null,
+                'campaign_uuid'=>$campaignUuid?:null
+            ],
+
+            'available_filters'=>[
+                'types'=>$allowedTypes,
+                'statuses'=>$allowedStatuses,
+                'available'=>[true,false],
+                'per_page_max'=>100
+            ]
 
         ]
     );

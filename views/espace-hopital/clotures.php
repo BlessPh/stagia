@@ -18,11 +18,13 @@ require_once __DIR__.'/../../includes/app-header.php';
 .completion-card{border:1px solid #e1e7ee;border-radius:13px;margin:14px;background:#fff;overflow:hidden}
 .completion-head{padding:17px 18px;border-bottom:1px solid #edf0f3;display:flex;justify-content:space-between;gap:15px}
 .completion-body{padding:18px}
-.completion-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.completion-box{border:1px solid #e4e9ef;border-radius:10px;padding:13px}
+.completion-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.completion-box{border:1px solid #e4e9ef;border-radius:10px;padding:13px;min-width:0}
 .completion-box small{display:block;color:#64748b;margin-bottom:5px}
-.completion-box strong{font-size:17px}
+.completion-box strong{font-size:17px;display:block;overflow-wrap:anywhere}
+.completion-box .completion-note{font-size:11px;color:#64748b;margin-top:4px}
 .blocker{background:#fff8e8;border:1px solid #f6d48a;border-radius:9px;padding:9px 11px;margin-top:7px;font-size:13px}
+@media(max-width:1400px){.completion-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:900px){.completion-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.completion-grid{grid-template-columns:1fr}}
 </style>
@@ -196,6 +198,23 @@ function render(list){
 
         const c=x.completion||{};
         const blockers=c.blockers||[];
+        const alreadyClosed=c.statut==='VALIDE';
+
+        /*
+         * Pour une ancienne clôture déjà VALIDÉE, les nouveaux champs
+         * peuvent ne pas exister dans son ancien instantané.
+         * On ne la remet donc jamais visuellement "en attente".
+         */
+        const deliberationOk=
+            alreadyClosed ||
+            c.deliberation_status==='VALIDEE';
+
+        const universityOk=
+            alreadyClosed ||
+            (
+                ['VALIDE','ARCHIVE'].includes(c.university_validation_status) &&
+                !!c.university_validated_at
+            );
 
         return `
         <div class="completion-card">
@@ -223,65 +242,65 @@ function render(list){
                     </div>
                 </div>
 
-                 <div class="text-end">
+                <div class="text-end">
 
-    ${statusBadge(c.statut)}
+                    ${statusBadge(c.statut)}
 
-    ${
-        c.statut==='PRET'
-        ?`
-            <div class="mt-2">
+                    ${
+                        c.statut==='PRET'
+                        ?`
+                            <div class="mt-2">
 
-                <button type="button"
-                        class="btn btn-success btn-sm btn-validate-stage"
-                        data-id="${Number(x.assignment_id)}">
+                                <button type="button"
+                                        class="btn btn-success btn-sm btn-validate-stage"
+                                        data-id="${Number(x.assignment_id)}">
 
-                    <i class="bi bi-check-lg me-1"></i>
-                    Valider le stage
+                                    <i class="bi bi-check-lg me-1"></i>
+                                    Valider le stage
 
-                </button>
+                                </button>
 
-            </div>
-        `
-        :''
-    }
+                            </div>
+                        `
+                        :''
+                    }
 
-            ${
-                c.statut==='VALIDE' && x.certificate
-                ?`
-                    <div class="mt-2 d-flex gap-1 justify-content-end">
+                    ${
+                        c.statut==='VALIDE' && x.certificate
+                        ?`
+                            <div class="mt-2 d-flex gap-1 justify-content-end">
 
-                        <a href="${BASE_URL}/actions/stages/certificate-pdf.php?token=${
-                            encodeURIComponent(x.certificate.uuid)
-                        }"
-                        target="_blank"
-                        class="btn btn-sm btn-outline-primary">
+                                <a href="${BASE_URL}/actions/stages/certificate-pdf.php?token=${
+                                    encodeURIComponent(x.certificate.uuid)
+                                }"
+                                target="_blank"
+                                class="btn btn-sm btn-outline-primary">
 
-                            <i class="bi bi-file-earmark-pdf me-1"></i>
-                            Attestation
+                                    <i class="bi bi-file-earmark-pdf me-1"></i>
+                                    Attestation
 
-                        </a>
+                                </a>
 
-                        <a href="${BASE_URL}/actions/stages/certificate-pdf.php?token=${
-                            encodeURIComponent(x.certificate.uuid)
-                        }&download=1"
-                        class="btn btn-sm btn-outline-secondary"
-                        title="Télécharger">
+                                <a href="${BASE_URL}/actions/stages/certificate-pdf.php?token=${
+                                    encodeURIComponent(x.certificate.uuid)
+                                }&download=1"
+                                class="btn btn-sm btn-outline-secondary"
+                                title="Télécharger">
 
-                            <i class="bi bi-download"></i>
+                                    <i class="bi bi-download"></i>
 
-                        </a>
+                                </a>
 
-                    </div>
+                            </div>
 
-                    <div class="small text-muted mt-2">
-                        ${STAGIA.escape(x.certificate.reference||'')}
-                    </div>
-                `
-                :''
-            }
+                            <div class="small text-muted mt-2">
+                                ${STAGIA.escape(x.certificate.reference||'')}
+                            </div>
+                        `
+                        :''
+                    }
 
-        </div>
+                </div>
 
             </div>
 
@@ -296,8 +315,10 @@ function render(list){
                             /
                             ${Number(c.total_rotations||0)}
                         </strong>
-                        ${check(c.total_rotations>0 &&
-                               c.rotations_terminees===c.total_rotations)}
+                        ${check(
+                            c.total_rotations>0 &&
+                            c.rotations_terminees===c.total_rotations
+                        )}
                     </div>
 
                     <div class="completion-box">
@@ -323,7 +344,7 @@ function render(list){
                     </div>
 
                     <div class="completion-box">
-                        <small>Évaluation finale</small>
+                        <small>Résultat final</small>
                         <strong>
                             ${
                                 c.note_finale!==null &&
@@ -331,11 +352,81 @@ function render(list){
                                 ?Number(c.note_finale).toLocaleString('fr-FR',{
                                     minimumFractionDigits:2,
                                     maximumFractionDigits:2
-                                })+' / 20'
-                               :'Non disponible'
+                                })+' %'
+                                :'Non disponible'
                             }
                         </strong>
-                        ${check(!!c.final_evaluation_id)}
+
+                        ${
+                            c.decision_finale
+                            ?`<div class="completion-note">
+                                Décision :
+                                <strong style="font-size:11px;display:inline">
+                                    ${STAGIA.escape(
+                                        String(c.decision_finale)
+                                        .replaceAll('_',' ')
+                                    )}
+                                </strong>
+                              </div>`
+                            :''
+                        }
+
+                        ${check(
+                            alreadyClosed ||
+                            !!c.final_evaluation_id
+                        )}
+                    </div>
+
+                    <div class="completion-box">
+                        <small>Mini-jurys / Délibération</small>
+
+                        <strong>
+                            ${
+                                alreadyClosed
+                                ?'Clôturé'
+                                :c.deliberation_status==='VALIDEE'
+                                    ?'VALIDÉE'
+                                    :'En attente'
+                            }
+                        </strong>
+
+                        ${
+                            !alreadyClosed && c.deliberation_date
+                            ?`<div class="completion-note">
+                                Délibération du ${dateFr(c.deliberation_date)}
+                              </div>`
+                            :alreadyClosed
+                                ?'<div class="completion-note">Dossier historique déjà clôturé</div>'
+                                :'<div class="completion-note">Tous les mini-jurys doivent être validés</div>'
+                        }
+
+                        ${check(deliberationOk)}
+                    </div>
+
+                    <div class="completion-box">
+                        <small>Validation université</small>
+
+                        <strong>
+                            ${
+                                alreadyClosed
+                                ?'Clôturé'
+                                :universityOk
+                                    ?'VALIDÉ'
+                                    :'En attente'
+                            }
+                        </strong>
+
+                        ${
+                            !alreadyClosed && c.university_validated_at
+                            ?`<div class="completion-note">
+                                Validé le ${dateFr(c.university_validated_at)}
+                              </div>`
+                            :alreadyClosed
+                                ?'<div class="completion-note">Clôture antérieure conservée</div>'
+                                :'<div class="completion-note">Résultat académique à valider</div>'
+                        }
+
+                        ${check(universityOk)}
                     </div>
 
                 </div>
@@ -385,6 +476,18 @@ function render(list){
 /* =========================================================
    HELPERS
 ========================================================= */
+function dateFr(v){
+    if(!v) return '-';
+
+    const p=String(v)
+        .slice(0,10)
+        .split('-');
+
+    return p.length===3
+        ?`${p[2]}/${p[1]}/${p[0]}`
+        :v;
+}
+
 function statusBadge(s){
     return {
         EN_PREPARATION:

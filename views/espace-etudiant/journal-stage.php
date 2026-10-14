@@ -31,7 +31,7 @@ require_once __DIR__.'/../../includes/app-header.php';
 <div class="stagia-page-head">
     <div>
         <h1>Mon journal de stage</h1>
-        <p>Enregistrez vos activités quotidiennes réalisées pendant votre rotation active.</p>
+        <p>Enregistrez vos activités quotidiennes réalisées pendant votre rotation.</p>
     </div>
 
     <button type="button"
@@ -113,13 +113,13 @@ require_once __DIR__.'/../../includes/app-header.php';
 <div class="row g-3">
 
 <div class="col-md-8">
-    <label class="form-label">Rotation active</label>
-    <input type="text" id="rotationDisplay" class="form-control" readonly>
+    <label class="form-label">Rotation</label>
+    <select id="rotationSelect" class="form-select"></select>
 </div>
 
 <div class="col-md-4">
     <label class="form-label">Date</label>
-    <input type="date" id="entryDate" class="form-control" readonly>
+    <input type="date" name="date_journal" id="entryDate" class="form-control" required>
 </div>
 
 <div class="col-12">
@@ -187,6 +187,7 @@ const ASSIGNMENT_ID=URL_PARAMS.get('assignment_id')||'';
 const modal=new bootstrap.Modal($('entryModal'));
 
 let rotations=[];
+let eligibleRotations=[];
 let entries=[];
 let activities=[];
 let currentRotation=null;
@@ -204,6 +205,7 @@ async function charger(){
         );
 
         rotations=r.data.rotations||[];
+        eligibleRotations=r.data.eligible_rotations||[];
         entries=r.data.entries||[];
         currentRotation=r.data.current_rotation||null;
         nextRotation=r.data.next_rotation||null;
@@ -262,10 +264,19 @@ function renderExecutionInfo(){
         return;
     }
 
+    if(eligibleRotations.length){
+        $('executionInfo').innerHTML=`
+            <div class="alert alert-light border mb-0">
+                <i class="bi bi-journal-check me-1"></i>
+                Vous pouvez encore compléter un journal manquant sur une rotation terminée, avec une date comprise dans sa période.
+            </div>`;
+        return;
+    }
+
     $('executionInfo').innerHTML=`
         <div class="alert alert-light border mb-0">
             <i class="bi bi-lock-fill me-1"></i>
-            Aucune rotation active aujourd’hui.
+            Aucune rotation disponible pour le journal.
         </div>`;
 }
 
@@ -355,12 +366,13 @@ function actions(x){
                     <i class="bi bi-pencil"></i>
                 </button>
 
-                <button type="button"
-                        class="btn btn-sm btn-primary-stagia btn-submit-entry"
-                        data-id="${Number(x.id)}">
-                    <i class="bi bi-send me-1"></i>
-                    Soumettre
-                </button>
+                ${x.can_submit?`
+                    <button type="button"
+                            class="btn btn-sm btn-primary-stagia btn-submit-entry"
+                            data-id="${Number(x.id)}">
+                        <i class="bi bi-send me-1"></i>
+                        Soumettre
+                    </button>`:''}
             </div>`;
     }
 
@@ -384,9 +396,9 @@ function statusBadge(s){
 
 $('newEntryBtn').addEventListener('click',()=>{
 
-    if(!currentRotation){
+    if(!eligibleRotations.length){
         STAGIA.toast(
-            'Aucune rotation active aujourd’hui.',
+            'Aucune rotation disponible pour le journal.',
             'danger'
         );
         return;
@@ -396,8 +408,14 @@ $('newEntryBtn').addEventListener('click',()=>{
     $('entryId').value='';
     $('entryModalTitle').textContent='Nouvelle entrée';
 
-    setEntryRotation(currentRotation);
-    $('entryDate').value=today;
+    chargerRotationsJournal();
+
+    const selected=eligibleRotations.find(r=>(
+        currentRotation && Number(r.rotation_id)===Number(currentRotation.rotation_id)
+    ))||eligibleRotations[0];
+    setEntryRotation(selected);
+    $('rotationSelect').value=String(selected.rotation_id);
+    updateEntryDate(selected);
 
     activities=[];
     renderActivities();
@@ -444,12 +462,19 @@ function ouvrirEntry(x,readOnly=false){
 
     const r=getRotation(x.rotation_id);
 
+    chargerRotationsJournal();
+
     if(r){
         setEntryRotation(r);
+        if(!$('rotationSelect').querySelector(`option[value="${Number(r.rotation_id)}"]`)){
+            ajouterOptionRotation(r);
+        }
+        $('rotationSelect').value=String(r.rotation_id);
     }else{
         $('entryRotationId').value=Number(x.rotation_id||0)||'';
         $('entryAssignmentId').value=Number(x.assignment_id||0)||'';
-        $('rotationDisplay').value='Rotation '+Number(x.sequence_no||0)+' - '+(x.unit_name||'-');
+        $('rotationSelect').innerHTML=
+            `<option value="${Number(x.rotation_id||0)}">Rotation ${Number(x.sequence_no||0)} - ${STAGIA.escape(x.unit_name||'-')}</option>`;
     }
 
     activities=(x.activities||[]).map(a=>({
@@ -467,23 +492,59 @@ function ouvrirEntry(x,readOnly=false){
         readOnly?'Consulter le journal':'Modifier le journal';
 
     setReadOnly(readOnly);
+    $('rotationSelect').disabled=true;
+    $('entryDate').disabled=true;
 
     modal.show();
 }
 
 function setEntryRotation(r){
+    $('entryRotationId').value=Number(r.rotation_id||r.id||0)||'';
+    $('entryAssignmentId').value=Number(r.assignment_id||0)||'';
+}
+
+function rotationOption(r){
     const service=r.parent_name
         ?r.parent_name+' › '+r.unit_name
         :r.unit_name;
 
-    $('entryRotationId').value=Number(r.rotation_id||r.id||0)||'';
-    $('entryAssignmentId').value=Number(r.assignment_id||0)||'';
-
-    $('rotationDisplay').value=
-        `Rotation ${Number(r.sequence_no||0)} - ${service||'-'}`;
+    return `<option value="${Number(r.rotation_id||r.id||0)}">Rotation ${Number(r.sequence_no||0)} - ${STAGIA.escape(service||'-')} (${dateFr(r.date_debut)} au ${dateFr(r.date_fin)})</option>`;
 }
 
+function chargerRotationsJournal(){
+    $('rotationSelect').innerHTML=eligibleRotations.map(rotationOption).join('');
+}
+
+function ajouterOptionRotation(r){
+    $('rotationSelect').insertAdjacentHTML('beforeend',rotationOption(r));
+}
+
+function updateEntryDate(r){
+    if(!r)return;
+
+    $('entryDate').min=r.date_debut||'';
+    $('entryDate').max=r.date_fin<today?r.date_fin:today;
+
+    if(
+        !$('entryDate').value ||
+        $('entryDate').value<$('entryDate').min ||
+        $('entryDate').value>$('entryDate').max
+    ){
+        $('entryDate').value=$('entryDate').max;
+    }
+}
+
+$('rotationSelect').addEventListener('change',()=>{
+    const r=getRotation($('rotationSelect').value);
+    if(!r)return;
+    setEntryRotation(r);
+    updateEntryDate(r);
+});
+
 function setReadOnly(value){
+
+    $('rotationSelect').disabled=value;
+    $('entryDate').disabled=value;
 
     [
         'entrySummary',
@@ -645,9 +706,9 @@ $('entryForm').addEventListener('submit',async e=>{
 
     e.preventDefault();
 
-    if(!$('entryId').value && !currentRotation){
+    if(!$('entryId').value && !getRotation($('entryRotationId').value)){
         STAGIA.toast(
-            'Aucune rotation active aujourd’hui.',
+            'Aucune rotation disponible pour le journal.',
             'danger'
         );
         return;

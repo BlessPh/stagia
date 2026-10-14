@@ -18,6 +18,7 @@ try{
     /* Les autorisations complémentaires sont évaluées selon le propriétaire fonctionnel du document. */
     $data=certificateData($pdo,$token);
     if(!$data){http_response_code(404);exit('Attestation introuvable.');}
+    if(!certificateIsAvailable($data)){http_response_code(409);exit('Attestation indisponible avant la validation universitaire des résultats.');}
 
     $role=$_SESSION['role_code']??'';
     if($role==='ADMIN_ACCUEIL'){

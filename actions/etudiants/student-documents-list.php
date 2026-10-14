@@ -16,7 +16,7 @@ try{
     $s=$pdo->prepare('SELECT uuid FROM stage_certificates WHERE '.$where.' ORDER BY generated_at DESC,id DESC');$s->execute([$sid]);
     $items=[];
     foreach($s->fetchAll(PDO::FETCH_COLUMN) as $uuid){
-        $d=certificateData($pdo,$uuid);if(!$d)continue;
+        $d=certificateData($pdo,$uuid);if(!$d||!certificateIsAvailable($d))continue;
         $items[]=[
             'id'=>(int)$d['certificate_id'],'uuid'=>$d['uuid'],'reference'=>$d['reference'],'type_document'=>$d['type_document']?:'ATTESTATION_STAGE','statut'=>$d['statut']?:'GENERE','generated_at'=>$d['generated_at'],
             'note_finale'=>$d['note_finale'],'taux_presence'=>$d['taux_presence'],'date_debut'=>$d['date_debut'],'date_fin'=>$d['date_fin'],'campaign_code'=>$d['campaign_code'],'campaign_title'=>$d['campaign_title'],'host_name'=>$d['host_name'],'unit_name'=>$d['unit_name']

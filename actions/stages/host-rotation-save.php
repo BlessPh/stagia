@@ -3,8 +3,7 @@
  * Endpoint AJAX de création ou modification d'une rotation de stage dans une unité d'accueil.
  * Il protège la période, la capacité, l'absence de chevauchement et l'encadreur principal.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)
-    session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

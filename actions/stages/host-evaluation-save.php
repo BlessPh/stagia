@@ -3,7 +3,7 @@
  * Endpoint AJAX de sauvegarde ou soumission d'une évaluation par l'encadreur de rotation.
  * Il valide le référentiel, les compétences et calcule la note pondérée côté serveur.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

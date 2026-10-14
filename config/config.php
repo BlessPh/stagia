@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/../includes/error-handler.php';
 require_once __DIR__.'/env.php';
 
 /* APP_BASE_URL peut imposer une valeur en production, par exemple /stagia. */

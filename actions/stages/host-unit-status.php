@@ -7,7 +7,7 @@ ob_start();
 
 header('Content-Type: application/json; charset=utf-8');
 
-if(session_status()!==PHP_SESSION_ACTIVE) session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/permissions.php';
@@ -18,6 +18,7 @@ require_once __DIR__.'/../../includes/permissions.php';
 ========================================================= */
 /** Envoie une réponse JSON unique en éliminant tout tampon de sortie précédent. */
 function respond(bool $success,string $message='',array $data=[],int $status=200): never{
+    if(!$success&&function_exists('appPublicErrorMessage'))$message=appPublicErrorMessage($message);
     http_response_code($status);
 
     if(ob_get_length()) ob_clean();

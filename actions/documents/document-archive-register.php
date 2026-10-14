@@ -32,6 +32,6 @@ try{
     ob_clean();
     echo json_encode(['success'=>true,'message'=>'Document archivé.','data'=>['reference'=>$ref]],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 }catch(Throwable $e){
-    ob_clean();http_response_code(500);
-    echo json_encode(['success'=>false,'message'=>$e->getMessage(),'data'=>[]],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    ob_clean();error_log('[DOCUMENT ARCHIVE REGISTER] '.$e->getMessage());http_response_code(500);
+    echo json_encode(['success'=>false,'message'=>appPublicErrorMessage($e->getMessage()),'data'=>[]],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 }

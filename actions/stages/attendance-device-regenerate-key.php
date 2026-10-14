@@ -3,7 +3,7 @@
  * Endpoint AJAX de rotation de la clé API d'un appareil de pointage.
  * La nouvelle clé est fournie une seule fois dans la réponse sécurisée.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 /* Dépendances de base, réponse JSON et contrôle d'accès métier. */
 require_once __DIR__.'/../../config/database.php';

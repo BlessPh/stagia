@@ -5,7 +5,8 @@ require_once __DIR__.'/../../includes/certificate-service.php';
 
 $token=trim((string)($_GET['token']??''));
 $data=$token!==''?certificateData($pdo,$token):null;
-http_response_code($data?200:404);
+$available=$data?certificateIsAvailable($data):false;
+http_response_code($data?($available?200:409):404);
 
 function vhtml($v):string{return htmlspecialchars((string)($v??''),ENT_QUOTES,'UTF-8');}
 
@@ -37,6 +38,11 @@ function publicMaskCode(string $code):string{
     return $start.str_repeat('•',max(3,$len-6)).$end;
 }
 
+/** Traduit le code interne sans exposer les libellés techniques au public. */
+function publicDocType(?string $type):string{
+    return certificatePublicTypeLabel($type);
+}
+
 function publicDocStatus(?string $status):array{
     $raw=strtoupper(trim((string)($status?:'VALIDE')));
     return match($raw){
@@ -48,9 +54,13 @@ function publicDocStatus(?string $status):array{
             'class'=>'warning','icon'=>'bi-archive-fill','title'=>'Document archivé',
             'label'=>$raw,'text'=>'Ce document est authentique et archivé dans STAGIA-RDC.'
         ],
+        'EN_ATTENTE_VALIDATION' => [
+            'class'=>'warning','icon'=>'bi-hourglass-split','title'=>'Validation universitaire en attente',
+            'label'=>$raw,'text'=>'Ce document ne peut pas encore être utilisé : les résultats doivent être validés par l’université.'
+        ],
         'SIGNEE','SIGNE','VALIDEE','VALIDE','GENEREE','GENERE','PRET','PRETE' => [
             'class'=>'success','icon'=>'bi-patch-check-fill','title'=>'Document authentique',
-            'label'=>$raw,'text'=>'Ce document existe dans STAGIA-RDC et son jeton de vérification est valide.'
+            'label'=>'AUTHENTIQUE','text'=>'Ce document existe dans STAGIA-RDC et son jeton de vérification est valide.'
         ],
         default => [
             'class'=>'info','icon'=>'bi-info-circle-fill','title'=>'Document trouvé',
@@ -59,7 +69,7 @@ function publicDocStatus(?string $status):array{
     };
 }
 
-$status=$data?publicDocStatus($data['statut']??'VALIDE'):[
+$status=$data?publicDocStatus($available?($data['statut']??'VALIDE'):'EN_ATTENTE_VALIDATION'):[
     'class'=>'danger','icon'=>'bi-x-circle-fill','title'=>'Document introuvable',
     'label'=>'INTROUVABLE','text'=>'Le jeton de vérification est invalide ou le document n’existe pas dans STAGIA-RDC.'
 ];
@@ -166,7 +176,7 @@ linear-gradient(135deg,#f8fafc,#eef2f7);color:var(--ink);font-family:Arial,Helve
             </div>
             <div class="info-box">
                 <small>Type</small>
-                <strong><?=vhtml($data['type_document']??'Attestation de stage')?></strong>
+                <strong><?=vhtml(publicDocType($data['type_document']??null))?></strong>
             </div>
             <div class="info-box">
                 <small>Stagiaire</small>

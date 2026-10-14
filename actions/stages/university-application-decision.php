@@ -9,6 +9,7 @@ require_once __DIR__.'/../../includes/permissions.php';
 require_once __DIR__.'/../../includes/ajax.php';
 require_once __DIR__.'/../../includes/stage-student-notifications.php';
 require_once __DIR__.'/../../includes/payment/financial-obligation.php';
+require_once __DIR__.'/../../includes/stage-letter-service.php';
 
 requireAjaxRole(['ADMIN_ETABLISSEMENT','RESPONSABLE_PEDAGOGIQUE']);
 verifyAjaxCsrf();
@@ -25,6 +26,7 @@ function invoiceRef():string{
 try{
     /* La candidature est verrouillée avec ses objets associés avant toute décision. */
     $eid=currentEtablissementId($pdo);
+    $actorId=(int)($_SESSION['user_id']??0);
     $id=(int)($_POST['application_id']??0);
     $decision=strtoupper(trim((string)($_POST['decision']??'')));
     $motif=trim((string)($_POST['motif_refus']??''));
@@ -139,8 +141,18 @@ try{
             stageNotifyStudentReservation($pdo,$reservationId,'stage.reservation.approved',[
                 'reservation_status'=>'CONFIRMEE','workflow_status'=>'PLACEMENT_UNIVERSITAIRE_EN_ATTENTE'
             ]);
+            $letterUrl=stageLetterUrl($id);
+            try{
+                stageLetterCreateForAcceptedApplication($pdo,$id,$actorId);
+            }catch(Throwable $letterError){
+                error_log('[STAGE LETTER] '.$letterError->getMessage());
+            }
             $pdo->commit();
-            jsonResponse(true,'Candidature acceptée. Paiement déjà validé : la réservation est prête pour le placement universitaire.');
+            jsonResponse(
+                true,
+                'Candidature acceptée. Paiement déjà validé : la lettre de stage est disponible et la réservation est prête pour le placement universitaire.',
+                ['letter_url'=>$letterUrl]
+            );
         }
 
         if($invoice){
@@ -182,8 +194,18 @@ try{
             'amount'=>$montant,'currency'=>$devise,'reservation_status'=>'EN_ATTENTE_PAIEMENT',
             'workflow_status'=>'EN_ATTENTE_PAIEMENT'
         ]);
+        $letterUrl=stageLetterUrl($id);
+        try{
+            stageLetterCreateForAcceptedApplication($pdo,$id,$actorId);
+        }catch(Throwable $letterError){
+            error_log('[STAGE LETTER] '.$letterError->getMessage());
+        }
         $pdo->commit();
-        jsonResponse(true,"Candidature acceptée. Paiement de ".number_format($montant,2,',',' ')." {$devise} attendu avant le placement universitaire.");
+        jsonResponse(
+            true,
+            "Candidature acceptée. La lettre de stage est disponible. Le paiement de ".number_format($montant,2,',',' ')." {$devise} reste obligatoire avant le placement universitaire.",
+            ['letter_url'=>$letterUrl]
+        );
     }
 
     /* Un stage sans frais passe à la confirmation, puis attend le placement universitaire. */
@@ -194,8 +216,18 @@ try{
     stageNotifyStudentReservation($pdo,$reservationId,'stage.reservation.approved',[
         'reservation_status'=>'CONFIRMEE','workflow_status'=>'PLACEMENT_UNIVERSITAIRE_EN_ATTENTE'
     ]);
+    $letterUrl=stageLetterUrl($id);
+    try{
+        stageLetterCreateForAcceptedApplication($pdo,$id,$actorId);
+    }catch(Throwable $letterError){
+        error_log('[STAGE LETTER] '.$letterError->getMessage());
+    }
     $pdo->commit();
-    jsonResponse(true,"Candidature acceptée. La réservation est confirmée et prête pour le placement universitaire.");
+    jsonResponse(
+        true,
+        'Candidature acceptée. La lettre de stage est disponible; la réservation est confirmée et prête pour le placement universitaire.',
+        ['letter_url'=>$letterUrl]
+    );
 }catch(Throwable $e){
     /* Toute erreur annule les changements liés pour ne pas dissocier candidature, facture et admission. */
     if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();

@@ -3,8 +3,7 @@
  * Endpoint AJAX de création ou modification d'un service ou d'une unité d'accueil.
  * Il maintient la hiérarchie, la capacité et le code lisible associé à l'identifiant de la ligne.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)
-    session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

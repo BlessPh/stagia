@@ -167,10 +167,21 @@ try{
     $stmt=$pdo->prepare("
         SELECT COUNT(*)
 
-        FROM stage_certificates
+        FROM stage_certificates cert
+        INNER JOIN stage_completions comp
+            ON comp.id=cert.completion_id
 
-        WHERE student_id=?
-          AND statut='GENERE'
+        WHERE cert.student_id=?
+          AND cert.statut='GENERE'
+          AND comp.statut='VALIDE'
+          AND EXISTS(
+              SELECT 1
+              FROM stage_result_items ri
+              INNER JOIN stage_result_transmissions rt
+                  ON rt.id=ri.transmission_id
+              WHERE ri.assignment_id=comp.assignment_id
+                AND rt.statut IN('VALIDE','ARCHIVE')
+          )
     ");
 
     $stmt->execute([
@@ -240,6 +251,15 @@ try{
         LEFT JOIN stage_certificates cert
             ON cert.completion_id=comp.id
            AND cert.statut='GENERE'
+           AND comp.statut='VALIDE'
+           AND EXISTS(
+               SELECT 1
+               FROM stage_result_items ri
+               INNER JOIN stage_result_transmissions rt
+                   ON rt.id=ri.transmission_id
+               WHERE ri.assignment_id=comp.assignment_id
+                 AND rt.statut IN('VALIDE','ARCHIVE')
+           )
 
         WHERE se.student_id=?
 
@@ -287,13 +307,11 @@ try{
         }
 
 
-        if(
-            $currentStage['note_finale']
-            !==null
-        ){
-            $currentStage['note_finale']=
-                (float)$currentStage['note_finale'];
-        }
+        $currentStage['note_finale']=
+            $currentStage['completion_status']==='VALIDE'
+            &&$currentStage['note_finale']!==null
+                ?(float)$currentStage['note_finale']
+                :null;
     }
 
 

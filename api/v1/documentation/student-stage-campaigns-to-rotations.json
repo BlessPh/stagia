@@ -1,11 +1,11 @@
 {
   "document": {
     "title": "API étudiant — des campagnes aux rotations",
-    "version": "1.6.1",
-    "updated_at": "2026-10-09",
+    "version": "1.9.0",
+    "updated_at": "2026-10-13",
     "base_path": "/api/v1",
     "language": "fr",
-    "scope": "Parcours mobile depuis les campagnes ouvertes jusqu'aux affectations et rotations."
+    "scope": "Parcours mobile depuis les campagnes ouvertes jusqu'aux resultats universitaires et aux documents de fin de stage."
   },
   "authentication": {
     "type": "Bearer",
@@ -13,7 +13,8 @@
     "required_role": "STAGIAIRE",
     "common_errors": {
       "401": "Jeton absent, invalide, expiré ou révoqué.",
-      "403": "Compte sans rôle STAGIAIRE actif ou profil étudiant inactif."
+      "403": "Compte sans rôle STAGIAIRE actif ou profil étudiant inactif.",
+      "429": "Trop de tentatives de connexion; respecter l'en-tête Retry-After."
     }
   },
   "response_envelope": {
@@ -63,6 +64,13 @@
     "evaluation_type": ["CONTINUE", "MI_ROTATION", "FIN_ROTATION"],
     "evaluation_status": ["VALIDEE", "FINALISEE"],
     "completion": ["EN_PREPARATION", "PRET", "VALIDE", "REFUSE", "ANNULE"],
+    "result_transmission": ["NON_TRANSMIS", "ENVOYE", "RECU", "VALIDE", "ARCHIVE"],
+    "result_decision": ["VALIDE", "A_REPRENDRE", "AJOURNE", "NON_VALIDE"],
+    "stage_document": ["GENERE", "ANNULE"],
+    "stage_report": ["SOUMIS", "RECU", "ACCEPTE", "A_CORRIGER", "REJETE", "ARCHIVE"],
+    "stage_justification_type": ["NON_DEMARRAGE", "INTERRUPTION"],
+    "stage_justification_status": ["EN_ATTENTE", "ACCEPTEE", "REJETEE"],
+    "post_evaluation_workflow": ["AWAITING_FINAL_DELIBERATION", "AWAITING_HOSPITAL_CLOSURE", "AWAITING_TRANSMISSION", "AWAITING_UNIVERSITY_RECEIPT", "AWAITING_UNIVERSITY_VALIDATION", "COMPLETED"],
     "workflow": [
       "DECISION_UNIVERSITAIRE_EN_ATTENTE",
       "EN_ATTENTE_PAIEMENT",
@@ -80,6 +88,33 @@
     ]
   },
   "routes": [
+    {
+      "id": "student_login",
+      "method": "POST",
+      "path": "/login",
+      "authentication_required": false,
+      "purpose": "Authentifier un compte actif possedant le role STAGIAIRE et ouvrir une session mobile.",
+      "body": {"identifiant": "identifiant, e-mail ou code STAGIA", "password": "mot de passe", "device_name": "facultatif"},
+      "data": "Jetons d'acces et de renouvellement, utilisateur, profil etudiant et account_reactivated.",
+      "changes_1_9": [
+        "Limitation des tentatives echouees avec reponse 429 et en-tete Retry-After.",
+        "Une connexion valide pendant le delai de grace annule la suppression programmee.",
+        "account_reactivated indique si le compte vient d'etre reactive."
+      ],
+      "errors": {"401": "Identifiants invalides.", "403": "Compte inactif ou role STAGIAIRE absent.", "410": "Suppression deja executee.", "429": "Trop de tentatives; respecter Retry-After."}
+    },
+    {
+      "id": "get_student_dashboard",
+      "method": "GET",
+      "path": "/student/dashboard",
+      "purpose": "Charger la synthese mobile du parcours de stage.",
+      "data": "Profil, compteurs, stage courant et informations de progression.",
+      "changes_1_9": [
+        "La note finale reste null tant que la cloture n'est pas VALIDE.",
+        "Un certificat n'est compte ou expose comme disponible qu'apres validation universitaire du resultat."
+      ],
+      "read_only": true
+    },
     {
       "id": "list_stage_options",
       "method": "GET",
@@ -195,7 +230,8 @@
         "reservation_uuid", "reservation_status", "placement", "admission_uuid",
         "assignment_uuid", "assignment_status", "completion_status",
         "stage_type", "mode", "workflow_status", "workflow_message"
-      ]
+      ],
+      "changes_1_9": ["note_finale reste null tant que completion_status n'est pas VALIDE."]
     },
     {
       "id": "list_reservations",
@@ -408,7 +444,8 @@
         "completion": "object",
         "workflow_status": "workflow",
         "workflow_message": "string"
-      }
+      },
+      "changes_1_9": ["completion.final_score reste null tant que completion.status n'est pas VALIDE."]
     },
     {
       "id": "list_assignments_and_rotations",
@@ -468,6 +505,7 @@
         "integrity": "{valid, service_target_valid, belongs_to_assignment_department}"
       },
       "ordering": ["rotation.sequence ASC", "rotation.period.start_date ASC", "rotation.id ASC"],
+      "changes_1_9": ["note_finale reste null tant que completion_status n'est pas VALIDE."],
       "integrity_rules": [
         "Le département vient de stage_admissions.coordination_unit_id.",
         "La rotation cible un service du département ou une unité enfant de ce service.",
@@ -656,6 +694,7 @@
       ],
       "data": {
         "items": "LogbookEntry[]",
+        "entry_contract_1_9": "rotation contient status et period; can_submit exige un brouillon, une rotation ACTIVE ou TERMINEE, une date dans sa periode et non future.",
         "stats": "{total, draft, submitted, validated, rejected, activities}",
         "pagination": "{page, per_page, total, pages, from, to}",
         "filters": "filtres appliqués",
@@ -667,17 +706,27 @@
       "id": "save_student_logbook",
       "method": "POST",
       "path": "/student/logbook",
+      "body": {"uuid": "uuid facultatif pour une modification", "assignment_uuid": "uuid obligatoire", "rotation_uuid": "uuid recommande", "date": "YYYY-MM-DD", "summary": "obligatoire", "activities": "tableau d'activites"},
+      "success_messages_1_9": {"create": "Brouillon du journal enregistre.", "update": "Journal mis a jour."},
+      "rules_1_9": [
+        "La date doit appartenir a la rotation selectionnee et ne peut pas etre future.",
+        "La rotation doit etre ACTIVE ou TERMINEE.",
+        "Une seule entree est autorisee par etudiant, rotation et date.",
+        "Une modification remet a zero l'ancienne validation et le commentaire de l'encadreur."
+      ],
       "purpose": "Créer ou modifier un brouillon du journal.",
       "data": {"entry": "LogbookEntry complet rechargé après enregistrement"},
-      "response_example": {"success": true, "message": "Journal enregistré en brouillon.", "data": {"entry": {"uuid": "logbook-uuid", "date": "2026-10-09", "status": "BROUILLON", "summary": "Consultations pédiatriques.", "learning": "Signes de gravité.", "difficulties": null, "observation": null, "submitted_at": null, "validated_at": null, "validator_comment": null, "activities": [], "activities_count": 0, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-31"}}, "rotation": {"uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}}, "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"code": "HOP-001", "name": "Hôpital Général"}, "service": {"id": 8, "code": "SRV-PED", "name": "Pédiatrie", "type": "SERVICE"}, "unit": null, "actions": {"edit": {"allowed": true, "method": "POST", "path": "/api/v1/student/logbook"}, "submit": {"allowed": true, "method": "POST", "path": "/api/v1/student/logbook/logbook-uuid/submit"}}}}}
+      "response_example": {"success": true, "message": "Brouillon du journal enregistré.", "data": {"entry": {"uuid": "logbook-uuid", "date": "2026-10-09", "status": "BROUILLON", "summary": "Consultations pédiatriques.", "learning": "Signes de gravité.", "difficulties": null, "observation": null, "submitted_at": null, "validated_at": null, "validator_comment": null, "activities": [], "activities_count": 0, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-31"}}, "rotation": {"uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}}, "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"code": "HOP-001", "name": "Hôpital Général"}, "service": {"id": 8, "code": "SRV-PED", "name": "Pédiatrie", "type": "SERVICE"}, "unit": null, "actions": {"edit": {"allowed": true, "method": "POST", "path": "/api/v1/student/logbook"}, "submit": {"allowed": true, "method": "POST", "path": "/api/v1/student/logbook/logbook-uuid/submit"}}}}}
     },
     {
       "id": "submit_student_logbook",
       "method": "POST",
       "path": "/student/logbook/{logbook_uuid}/submit",
+      "rules_1_9": ["Le resume et au moins une activite sont obligatoires.", "La date doit encore etre valide pour la rotation.", "Les erreurs de validation metier retournent 422."],
+      "success_message_1_9": "Journal soumis a l'encadreur.",
       "purpose": "Soumettre un brouillon à l'encadreur de manière idempotente.",
       "data": {"entry": "LogbookEntry complet, y compris lors d'une nouvelle tentative idempotente"},
-      "response_example": {"success": true, "message": "Journal soumis pour validation.", "data": {"entry": {"uuid": "logbook-uuid", "date": "2026-10-09", "status": "SOUMISE", "summary": "Consultations pédiatriques.", "learning": "Signes de gravité.", "difficulties": null, "observation": null, "submitted_at": "2026-10-09 17:10:00", "validated_at": null, "validator_comment": null, "activities": [], "activities_count": 0, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-31"}}, "rotation": {"uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}}, "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"code": "HOP-001", "name": "Hôpital Général"}, "service": {"id": 8, "code": "SRV-PED", "name": "Pédiatrie", "type": "SERVICE"}, "unit": null, "actions": {"edit": {"allowed": false, "method": "POST", "path": "/api/v1/student/logbook"}, "submit": {"allowed": false, "method": "POST", "path": "/api/v1/student/logbook/logbook-uuid/submit"}}}}}
+      "response_example": {"success": true, "message": "Journal soumis à l’encadreur.", "data": {"entry": {"uuid": "logbook-uuid", "date": "2026-10-09", "status": "SOUMISE", "summary": "Consultations pédiatriques.", "learning": "Signes de gravité.", "difficulties": null, "observation": null, "submitted_at": "2026-10-09 17:10:00", "validated_at": null, "validator_comment": null, "activities": [], "activities_count": 0, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-31"}}, "rotation": {"uuid": "rotation-uuid", "sequence": 1, "status": "ACTIVE", "period": {"start_date": "2026-10-01", "end_date": "2026-10-15"}}, "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"code": "HOP-001", "name": "Hôpital Général"}, "service": {"id": 8, "code": "SRV-PED", "name": "Pédiatrie", "type": "SERVICE"}, "unit": null, "actions": {"edit": {"allowed": false, "method": "POST", "path": "/api/v1/student/logbook"}, "submit": {"allowed": false, "method": "POST", "path": "/api/v1/student/logbook/logbook-uuid/submit"}}}}}
     },
     {
       "id": "list_student_feedbacks",
@@ -759,6 +808,232 @@
           "available_filters": {"types": ["CONTINUE", "MI_ROTATION", "FIN_ROTATION"], "statuses": ["VALIDEE", "FINALISEE"], "per_page_max": 100}
         }
       }
+    },
+    {
+      "id": "list_student_completions",
+      "method": "GET",
+      "path": "/student/completions",
+      "purpose": "Lister les clotures hospitalieres appartenant a l'etudiant sans lui donner d'action administrative.",
+      "query": [
+        {"name": "status", "aliases": ["statuses"], "multiple": true, "enum": "completion"},
+        {"name": "assignment_uuid", "type": "uuid", "optional": true},
+        {"name": "campaign_uuid", "type": "uuid", "optional": true},
+        {"name": "hospital_id", "type": "integer", "optional": true},
+        {"name": "date_from", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "date_to", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "data": {
+        "items": "Completion[] avec progression, blockers, affectation, campagne, hopital et departement",
+        "stats": "{total, by_status, ready, validated, average_score, average_attendance_rate}",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "filtres appliques",
+        "available_filters": "statuts et maximum de pagination"
+      },
+      "response_example": {
+        "success": true,
+        "message": "",
+        "data": {
+          "items": [{"uuid": "completion-uuid", "status": "VALIDE", "score": 80, "attendance_rate": 92.5, "final_appreciation": "Stage satisfaisant.", "decision_comment": null, "prepared_at": "2026-10-30 15:00:00", "validated_at": "2026-10-31 10:00:00", "progress": {"rotations": {"total": 4, "completed": 4}, "attendance": {"records": 24, "covered_rotations": 4}, "logbook": {"total": 12, "validated": 12, "covered_rotations": 4}, "final_evaluations": {"completed_rotations": 4}}, "readiness": {"ready": true, "blockers": []}, "validator": {"user_id": 31, "name": "Administrateur Hopital"}, "assignment": {"uuid": "assignment-uuid", "status": "TERMINEE", "start_date": "2026-10-01", "end_date": "2026-10-31"}, "campaign": {"uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"id": 24, "code": "HOP-001", "name": "Hopital General", "phone": "+243000000000", "email": "contact@hopital.cd"}, "department": {"id": 7, "code": "DEP-PED", "name": "Pediatrie", "type": "DEPARTEMENT"}}],
+          "stats": {"total": 1, "by_status": {"EN_PREPARATION": 0, "PRET": 0, "VALIDE": 1, "REFUSE": 0, "ANNULE": 0}, "ready": 0, "validated": 1, "average_score": 80, "average_attendance_rate": 92.5},
+          "pagination": {"page": 1, "per_page": 20, "total": 1, "pages": 1, "from": 1, "to": 1},
+          "filters": {"statuses": ["VALIDE"], "assignment_uuid": null, "campaign_uuid": null, "hospital_id": null, "date_from": null, "date_to": null},
+          "available_filters": {"statuses": ["EN_PREPARATION", "PRET", "VALIDE", "REFUSE", "ANNULE"], "per_page_max": 100}
+        }
+      },
+      "changes_1_9": [
+        "Chaque element expose final_deliberation et university_validation.",
+        "readiness.blockers controle la periode, les rotations, presences, journaux, evaluations finales, deliberation et validation universitaire.",
+        "score reste null tant que le statut de cloture n'est pas VALIDE."
+      ],
+      "read_only": true
+    },
+    {
+      "id": "list_student_results",
+      "method": "GET",
+      "path": "/student/results",
+      "purpose": "Lister les resultats personnels et l'avancement du circuit administratif hopital-universite.",
+      "query": [
+        {"name": "decision", "aliases": ["decisions"], "multiple": true, "enum": "result_decision"},
+        {"name": "transmission_status", "aliases": ["transmission_statuses"], "multiple": true, "enum": "result_transmission"},
+        {"name": "assignment_uuid", "type": "uuid", "optional": true},
+        {"name": "campaign_uuid", "type": "uuid", "optional": true},
+        {"name": "hospital_id", "type": "integer", "optional": true},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "data": {
+        "items": "Result[] avec metriques, administrative_process et document eventuel",
+        "stats": "{total, by_decision, by_transmission_status, average_score, average_attendance_rate, documents_available}",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "filtres appliques",
+        "available_filters": "decisions, statuts de transmission et maximum de pagination"
+      },
+      "response_example": {
+        "success": true,
+        "message": "",
+        "data": {
+          "items": [{"decision": "VALIDE", "score": 80, "attendance_rate": 92.5, "appreciation": "Presence 92.5% - Note 80%", "metrics": {"rotations": 4, "attendance_records": 24, "present": 21, "late": 1, "absent": 1, "justified": 1, "guard": 0, "logbook_entries": 12, "validated_logbook_entries": 12, "evaluations": 4}, "administrative_process": {"status": "COMPLETED", "student_action_required": false, "hospital_closure": {"status": "VALIDE", "validated_at": "2026-10-31 10:00:00"}, "university_transmission": {"uuid": "transmission-uuid", "status": "VALIDE", "transmitted_at": "2026-10-31 11:00:00", "received_at": "2026-10-31 12:00:00", "validated_at": "2026-11-01 09:00:00", "archived_at": null}}, "assignment": {"uuid": "assignment-uuid", "status": "TERMINEE", "start_date": "2026-10-01", "end_date": "2026-10-31"}, "campaign": {"uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"id": 24, "code": "HOP-001", "name": "Hopital General"}, "department": {"id": 7, "code": "DEP-PED", "name": "Pediatrie", "type": "DEPARTEMENT"}, "document": {"uuid": "certificate-uuid", "reference": "ATT-2026-12345", "type": "ATTESTATION_STAGE", "status": "GENERE", "available": true, "generated_at": "2026-11-01 09:00:01", "file_endpoint": "/api/v1/student/certificates/certificate-uuid/file", "download_endpoint": "/api/v1/student/certificates/certificate-uuid/file?download=1"}}],
+          "stats": {"total": 1, "by_decision": {"VALIDE": 1, "A_REPRENDRE": 0, "AJOURNE": 0, "NON_VALIDE": 0}, "by_transmission_status": {"NON_TRANSMIS": 0, "ENVOYE": 0, "RECU": 0, "VALIDE": 1, "ARCHIVE": 0}, "average_score": 80, "average_attendance_rate": 92.5, "documents_available": 1},
+          "pagination": {"page": 1, "per_page": 20, "total": 1, "pages": 1, "from": 1, "to": 1},
+          "filters": {"decisions": ["VALIDE"], "transmission_statuses": ["VALIDE"], "assignment_uuid": null, "campaign_uuid": null, "hospital_id": null},
+          "available_filters": {"decisions": ["VALIDE", "A_REPRENDRE", "AJOURNE", "NON_VALIDE"], "transmission_statuses": ["NON_TRANSMIS", "ENVOYE", "RECU", "VALIDE", "ARCHIVE"], "per_page_max": 100}
+        }
+      },
+      "changes_1_9": [
+        "Le resultat officiel exige une deliberation finale VALIDEE puis une transmission universitaire VALIDE ou ARCHIVE.",
+        "decision, score et appreciation restent null avant cette validation.",
+        "result_source indique FINAL_DELIBERATION ou LEGACY_CLOSURE.",
+        "administrative_process inclut final_deliberation, hospital_closure et university_transmission.",
+        "Le statut AWAITING_FINAL_DELIBERATION a ete ajoute et AJOURNE est un filtre de decision accepte."
+      ],
+      "read_only": true,
+      "rule": "administrative_process.student_action_required reste toujours false."
+    },
+    {
+      "id": "list_student_stage_documents",
+      "method": "GET",
+      "path": "/student/documents",
+      "purpose": "Lister les attestations et certificats personnels disponibles, annules ou en attente de validation.",
+      "query": [
+        {"name": "type", "aliases": ["types"], "multiple": true, "enum": ["ATTESTATION_STAGE", "CERTIFICAT_STAGE"]},
+        {"name": "status", "aliases": ["statuses"], "multiple": true, "enum": "stage_document"},
+        {"name": "available", "type": "boolean", "optional": true},
+        {"name": "assignment_uuid", "type": "uuid", "optional": true},
+        {"name": "campaign_uuid", "type": "uuid", "optional": true},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "data": {
+        "items": "Document[] avec stage, campagne, hopital, universite, unite et liens conditionnels",
+        "stats": "{total, attestations, certificates, available, cancelled, pending_validation}",
+        "pagination": "{page, per_page, total, pages, from, to}",
+        "filters": "filtres appliques",
+        "available_filters": "types, statuts, disponibilite et maximum de pagination"
+      },
+      "response_example": {
+        "success": true,
+        "message": "",
+        "data": {
+          "items": [{"uuid": "certificate-uuid", "reference": "ATT-2026-12345", "type_document": "ATTESTATION_STAGE", "status": "GENERE", "available": true, "university_result_status": "VALIDE", "availability_reason": null, "generated_at": "2026-11-01 09:00:01", "cancelled_at": null, "cancellation_reason": null, "stage": {"assignment_uuid": "assignment-uuid", "start_date": "2026-10-01", "end_date": "2026-10-31", "note_finale": 80, "taux_presence": 92.5, "validated_at": "2026-10-31 10:00:00"}, "campaign": {"code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"code": "HOP-001", "name": "Hopital General"}, "university": {"code": "UNI-001", "name": "Universite Exemple"}, "unit": {"code": "DEP-PED", "name": "Pediatrie"}, "file_endpoint": "/api/v1/student/certificates/certificate-uuid/file", "download_endpoint": "/api/v1/student/certificates/certificate-uuid/file?download=1", "requires_bearer": true, "verification_url": "/verification-attestation.php?token=certificate-uuid"}],
+          "stats": {"total": 1, "attestations": 1, "certificates": 0, "available": 1, "cancelled": 0, "pending_validation": 0},
+          "pagination": {"page": 1, "per_page": 20, "total": 1, "pages": 1, "from": 1, "to": 1},
+          "filters": {"types": ["ATTESTATION_STAGE"], "statuses": ["GENERE"], "available": true, "assignment_uuid": null, "campaign_uuid": null},
+          "available_filters": {"types": ["ATTESTATION_STAGE", "CERTIFICAT_STAGE"], "statuses": ["GENERE", "ANNULE"], "available": [true, false], "per_page_max": 100}
+        }
+      },
+      "read_only": true,
+      "rule": "Les liens de fichier restent null avant validation universitaire."
+    },
+    {
+      "id": "get_student_certificate_file",
+      "method": "GET",
+      "path": "/student/certificates/{uuid}/file",
+      "purpose": "Afficher ou telecharger une attestation appartenant a l'etudiant et devenue disponible.",
+      "query": [{"name": "download", "type": "boolean 0|1", "default": 0}],
+      "response": "Flux PDF ou HTML avec Content-Disposition inline ou attachment.",
+      "errors": {"404": "Document absent ou n'appartenant pas a l'etudiant.", "409": "Validation universitaire encore absente."},
+      "read_only": true
+    },
+    {
+      "id": "submit_student_stage_report",
+      "method": "POST",
+      "path": "/student/stage-reports",
+      "content_type": "multipart/form-data",
+      "purpose": "Soumettre une nouvelle version d'un rapport a l'universite proprietaire de la campagne.",
+      "body": {"assignment_uuid": "uuid requis", "report": "PDF, DOC ou DOCX, 15 Mo maximum", "title": "facultatif", "description": "facultatif"},
+      "success_status": 201,
+      "data": {"report": "StageReport complet avec version et liens"},
+      "response_example": {"success": true, "message": "Rapport de stage soumis a votre universite.", "data": {"report": {"uuid": "report-uuid", "version": 1, "title": "Rapport de stage en pediatrie", "description": "Version initiale", "status": "SOUMIS", "university_comment": null, "submitted_at": "2026-10-13 14:30:00", "file": {"original_name": "rapport.pdf", "mime_type": "application/pdf", "extension": "pdf", "size": 524288}, "reviewer": null, "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE", "start_date": "2026-10-01", "end_date": "2026-10-31"}, "campaign": {"uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"id": 7, "code": "HOP-001", "name": "Hopital General"}, "university": {"id": 3, "code": "UNI-001", "name": "Universite Exemple"}, "department": {"id": 12, "code": "DEP-PED", "name": "Pediatrie", "type": "DEPARTEMENT"}, "detail_endpoint": "/api/v1/student/stage-reports/report-uuid", "file_endpoint": "/api/v1/student/stage-reports/report-uuid/file", "download_endpoint": "/api/v1/student/stage-reports/report-uuid/file?download=1"}}}
+    },
+    {
+      "id": "list_student_stage_reports",
+      "method": "GET",
+      "path": "/student/stage-reports",
+      "purpose": "Consulter l'historique pagine des rapports envoyes.",
+      "query": [
+        {"name": "status", "aliases": ["statuses"], "multiple": true, "enum": "stage_report"},
+        {"name": "assignment_uuid", "type": "uuid", "optional": true},
+        {"name": "campaign_uuid", "type": "uuid", "optional": true},
+        {"name": "date_from", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "date_to", "type": "date YYYY-MM-DD", "optional": true},
+        {"name": "page", "type": "integer", "default": 1},
+        {"name": "per_page", "type": "integer", "default": 20, "maximum": 100}
+      ],
+      "data": {"items": "StageReport[]", "stats": "{total, by_status, assignments}", "pagination": "Pagination", "filters": "filtres appliques", "available_filters": "statuts et maximum"},
+      "response_example": {"success": true, "message": "", "data": {"items": [{"uuid": "report-uuid", "version": 1, "title": "Rapport de stage en pediatrie", "status": "SOUMIS", "university_comment": null, "submitted_at": "2026-10-13 14:30:00", "assignment": {"uuid": "assignment-uuid", "status": "ACTIVE"}, "campaign": {"uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage clinique 2026"}, "hospital": {"id": 7, "code": "HOP-001", "name": "Hopital General"}, "university": {"id": 3, "code": "UNI-001", "name": "Universite Exemple"}}], "stats": {"total": 1, "by_status": {"SOUMIS": 1, "RECU": 0, "ACCEPTE": 0, "A_CORRIGER": 0, "REJETE": 0, "ARCHIVE": 0}, "assignments": 1}, "pagination": {"page": 1, "per_page": 20, "total": 1, "pages": 1, "from": 1, "to": 1}, "filters": {"statuses": ["SOUMIS"], "assignment_uuid": null, "campaign_uuid": null, "date_from": null, "date_to": null}, "available_filters": {"statuses": ["SOUMIS", "RECU", "ACCEPTE", "A_CORRIGER", "REJETE", "ARCHIVE"], "per_page_max": 100}}},
+      "read_only": true
+    },
+    {
+      "id": "get_student_stage_report",
+      "method": "GET",
+      "path": "/student/stage-reports/{uuid}",
+      "purpose": "Recuperer un rapport precis appartenant a l'etudiant.",
+      "data": {"report": "StageReport complet"},
+      "response_example": {"success": true, "message": "", "data": {"report": {"uuid": "report-uuid", "version": 2, "title": "Rapport de stage corrige", "description": "Corrections demandees par l'universite", "status": "ACCEPTE", "university_comment": "Rapport conforme.", "submitted_at": "2026-10-15 10:00:00", "received_at": "2026-10-15 10:10:00", "reviewed_at": "2026-10-16 09:00:00", "reviewer": {"user_id": 18, "name": "Responsable academique"}, "assignment": {"uuid": "assignment-uuid", "status": "TERMINEE", "start_date": "2026-10-01", "end_date": "2026-10-31"}, "campaign": {"uuid": "campaign-uuid", "code": "CAM-000039", "title": "Stage clinique 2026"}, "file_endpoint": "/api/v1/student/stage-reports/report-uuid/file", "download_endpoint": "/api/v1/student/stage-reports/report-uuid/file?download=1"}}},
+      "errors": {"404": "Rapport absent ou appartenant a un autre etudiant."},
+      "read_only": true
+    },
+    {
+      "id": "get_student_stage_report_file",
+      "method": "GET",
+      "path": "/student/stage-reports/{uuid}/file",
+      "purpose": "Afficher ou telecharger le fichier original du rapport.",
+      "query": [{"name": "download", "type": "boolean 0|1", "default": 0}],
+      "response": "Flux du fichier avec Content-Disposition inline ou attachment.",
+      "read_only": true
+    },
+    {
+      "id": "list_student_stage_justifications",
+      "method": "GET",
+      "path": "/student/stage-justifications",
+      "purpose": "Lister les stages de l'etudiant, leur situation de suivi et la justification eventuelle.",
+      "data": {"items": "StageJustificationContext[]", "stats": "compteurs par situation et statut", "allowed_values": "types, reasons et statuses"},
+      "rules": ["La lecture ne marque jamais automatiquement une decision comme lue.", "Les actions autorisees sont retournees dans chaque element."],
+      "read_only": true
+    },
+    {
+      "id": "submit_student_stage_justification",
+      "method": "POST",
+      "path": "/student/stage-justifications",
+      "content_type": "application/json ou multipart/form-data",
+      "purpose": "Deposer ou renvoyer une justification de non-demarrage ou d'interruption de stage.",
+      "body": {"assignment_uuid": "uuid obligatoire", "type_situation": "NON_DEMARRAGE | INTERRUPTION", "motif": "valeur de allowed_values.reasons", "explication": "obligatoire pour AUTRE", "document": "PDF, JPG ou PNG facultatif, 8 Mo maximum"},
+      "success_status": 201,
+      "data": {"justification": "Contexte actualise avec statut, decision, document et actions"},
+      "rules": ["Un nouvel envoi met a jour la justification existante et la replace en attente.", "Une justification ACCEPTEE ne peut plus etre modifiee."],
+      "errors": {"422": "Situation, motif, explication ou fichier invalide."}
+    },
+    {
+      "id": "get_student_stage_justification_file",
+      "method": "GET",
+      "path": "/student/stage-justifications/{uuid}/file",
+      "purpose": "Afficher ou telecharger le justificatif appartenant a l'etudiant.",
+      "query": [{"name": "download", "type": "boolean 0|1", "default": 0}],
+      "response": "Flux PDF, JPEG ou PNG avec Content-Disposition inline ou attachment.",
+      "errors": {"404": "Document absent ou appartenant a un autre etudiant."},
+      "read_only": true
+    },
+    {
+      "id": "mark_student_stage_justification_read",
+      "method": "POST",
+      "path": "/student/stage-justifications/{uuid}/read",
+      "purpose": "Marquer explicitement la decision universitaire comme lue.",
+      "body": {},
+      "data": {"uuid": "uuid de la justification"},
+      "rules": ["Disponible uniquement apres une decision ACCEPTEE ou REJETEE."],
+      "errors": {"404": "Decision absente, non decidee ou deja lue."}
+    },
+    {
+      "id": "deactivate_student_account",
+      "method": "POST",
+      "path": "/student/account/deactivate",
+      "purpose": "Suspendre immediatement le compte et programmer son anonymisation apres 30 jours.",
+      "body": {"password": "mot de passe actuel", "confirmation": "DESACTIVER"},
+      "data": {"deletion_request": "{uuid, status, requested_at, delete_after, grace_period_days, reactivation}"},
+      "response_example": {"success": true, "message": "Compte desactive. Sa suppression est programmee dans 30 jours.", "data": {"deletion_request": {"uuid": "deletion-request-uuid", "status": "PENDING", "requested_at": "2026-10-13 15:00:00", "delete_after": "2026-11-12 15:00:00", "grace_period_days": 30, "reactivation": "Reconnectez-vous avant delete_after avec votre mot de passe pour annuler la suppression."}}},
+      "rule": "Une connexion valide avant delete_after annule la suppression; le worker traite les demandes echues."
     }
   ],
   "notification_events": [

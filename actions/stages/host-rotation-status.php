@@ -3,8 +3,7 @@
  * Endpoint AJAX de clôture anticipée ou d'annulation d'une rotation.
  * Les transitions sont strictement limitées au statut actuel de la rotation.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)
-    session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/ajax.php';

@@ -7,6 +7,7 @@ const API_ACCESS_TOKEN_TTL = 3600;
 const API_REFRESH_TOKEN_TTL = 2592000;
 
 function apiResponse(bool $success,string $message='',array $data=[],int $status=200):void{
+    if(!$success&&function_exists('appPublicErrorMessage'))$message=appPublicErrorMessage($message);
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');

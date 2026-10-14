@@ -2,6 +2,7 @@
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/auth.php';
 require_once __DIR__.'/../../includes/ajax.php';
+require_once __DIR__.'/../../includes/stage-logbook-rules.php';
 
 requireAjaxRole(['STAGIAIRE']);
 verifyAjaxCsrf();
@@ -30,12 +31,18 @@ try{
             e.id,
             e.statut,
             e.resume_activites,
+            e.date_journal,
+            r.date_debut,
+            r.date_fin,
+            r.statut AS rotation_statut,
             (
                 SELECT COUNT(*)
                 FROM stage_logbook_activities a
                 WHERE a.logbook_entry_id=e.id
             ) AS activities_count
         FROM stage_logbook_entries e
+        JOIN stage_rotations r
+          ON r.id=e.rotation_id
         WHERE e.id=?
           AND e.student_id=?
         LIMIT 1
@@ -48,6 +55,13 @@ try{
 
     if($entry['statut']!=='BROUILLON')
         jsonResponse(false,'Seul un brouillon peut être soumis.',[],422);
+
+    stageLogbookValidateRotationDate(
+        (string)$entry['date_journal'],
+        $entry['date_debut'],
+        $entry['date_fin'],
+        $entry['rotation_statut']
+    );
 
     if(trim((string)$entry['resume_activites'])==='')
         jsonResponse(false,'Complétez le résumé avant de soumettre.',[],422);
@@ -79,6 +93,8 @@ try{
         ['id'=>$id,'status'=>'SOUMIS']
     );
 
+}catch(StageLogbookValidationException $e){
+    jsonResponse(false,$e->getMessage(),[],422);
 }catch(Throwable $e){
     error_log(
         '[STUDENT LOGBOOK SUBMIT] '.$e->getMessage().

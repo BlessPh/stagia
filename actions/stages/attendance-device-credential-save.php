@@ -3,7 +3,7 @@
  * Endpoint AJAX qui associe un identifiant de pointage à un stagiaire.
  * L'identifiant est rattaché à un appareil précis de l'établissement courant.
  */
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 
 /* Dépendances de persistance, réponse JSON et contrôle des permissions. */
 require_once __DIR__.'/../../config/database.php';

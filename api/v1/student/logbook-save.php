@@ -1,8 +1,8 @@
 <?php
 
 require_once __DIR__.'/../api-auth.php';
-require_once __DIR__.'/../../../includes/stage-execution.php';
 require_once __DIR__.'/../../../includes/student-logbook-api.php';
+require_once __DIR__.'/../../../includes/stage-logbook-rules.php';
 
 requireApiMethod('POST');
 
@@ -98,9 +98,14 @@ $assignmentUuid=trim(
     (string)($input['assignment_uuid']??'')
 );
 
+$rotationUuid=trim(
+    (string)($input['rotation_uuid']??'')
+);
+
 $entryUuid=trim(
     (string)($input['uuid']??'')
 );
+$isUpdate=$entryUuid!=='';
 
 $date=trim(
     (string)($input['date']??'')
@@ -139,19 +144,10 @@ if(
 }
 
 
-if(
-    !preg_match(
-        '/^\d{4}-\d{2}-\d{2}$/',
-        $date
-    )
-){
-
-    apiResponse(
-        false,
-        'Format de date invalide.',
-        [],
-        422
-    );
+try{
+    $date=stageLogbookNormalizeDate($date);
+}catch(StageLogbookValidationException $e){
+    apiResponse(false,$e->getMessage(),[],422);
 }
 
 
@@ -164,6 +160,32 @@ if(!is_array($activities)){
         422
     );
 }
+
+if($summary===''){
+    apiResponse(false,'Le résumé des activités est obligatoire.',[],422);
+}
+
+$allowedActivityTypes=['OBSERVATION','PARTICIPATION','REALISATION','GARDE','CONSULTATION','AUTRE'];
+$allowedInvolvement=['','OBSERVE','ASSISTE','REALISE_SUPERVISE','REALISE_AUTONOME'];
+$normalizedActivities=[];
+foreach($activities as $activity){
+    if(!is_array($activity))apiResponse(false,'Une activité est invalide.',[],422);
+    $category=strtoupper(trim((string)($activity['category']??$activity['type_activite']??'PARTICIPATION')));
+    $label=trim((string)($activity['activity']??$activity['intitule']??''));
+    $level=strtoupper(trim((string)($activity['involvement_level']??$activity['niveau_implication']??'')));
+    if(!in_array($category,$allowedActivityTypes,true))apiResponse(false,"Type d'activité invalide.",[],422);
+    if($label==='')apiResponse(false,"L'intitulé de chaque activité est obligatoire.",[],422);
+    if(!in_array($level,$allowedInvolvement,true))apiResponse(false,"Niveau d'implication invalide.",[],422);
+    $normalizedActivities[]=[
+        'category'=>$category,
+        'activity'=>$label,
+        'description'=>trim((string)($activity['description']??'')),
+        'involvement_level'=>$level,
+        'quantity'=>max(1,(int)($activity['quantity']??$activity['quantite']??1)),
+        'observation'=>trim((string)($activity['observation']??''))
+    ];
+}
+$activities=$normalizedActivities;
 
 
 try{
@@ -229,38 +251,10 @@ try{
     }
 
 
-    if($entryUuid===''&&!in_array($assignment['statut'],['PLANIFIEE','ACTIVE'],true)){
+    if($entryUuid===''&&$assignment['statut']==='ANNULEE'){
 
         throw new RuntimeException(
-            'Le journal ne peut être modifié que pendant un stage actif.'
-        );
-    }
-
-
-    /* =====================================================
-       DATE DANS LA PÉRIODE DU STAGE
-    ====================================================== */
-
-    if(
-        !empty($assignment['date_debut'])
-        &&
-        $date<$assignment['date_debut']
-    ){
-
-        throw new RuntimeException(
-            'La date est antérieure au début du stage.'
-        );
-    }
-
-
-    if(
-        !empty($assignment['date_fin'])
-        &&
-        $date>$assignment['date_fin']
-    ){
-
-        throw new RuntimeException(
-            'La date dépasse la fin du stage.'
+            'Ce stage a été annulé.'
         );
     }
 
@@ -268,22 +262,13 @@ try{
     $assignmentId=
         (int)$assignment['id'];
 
-    if($entryUuid===''&&$date!==stageExecutionDate()){
-        throw new RuntimeException("Un nouveau journal ne peut etre cree que pour aujourd'hui.");
-    }
-
-    if($entryUuid===''&&($assignment['reservation_status']!=='CONFIRMEE'||!in_array($assignment['admission_status'],['ADMIS','EN_COURS'],true))){
+    if($entryUuid===''&&($assignment['reservation_status']!=='CONFIRMEE'||!in_array($assignment['admission_status'],['ADMIS','EN_COURS','TERMINE'],true))){
         throw new RuntimeException("Ce stage n'est pas ouvert au suivi.");
     }
 
     if($entryUuid!==''&&$assignment['statut']==='ANNULEE'){
         throw new RuntimeException('Ce stage a ete annule.');
     }
-
-    if($entryUuid===''){
-        requireActiveRotation($pdo,$assignmentId,$date);
-    }
-
 
     /* =====================================================
        COLONNES JOURNAL
@@ -371,7 +356,7 @@ try{
     if(isset($entryColumns['rotation_id'])){
 
         $stmt=$pdo->prepare("
-            SELECT id
+            SELECT id,date_debut,date_fin,statut
 
             FROM stage_rotations
 
@@ -393,6 +378,8 @@ try{
                   OR date_fin>=?
               )
 
+              AND (?='' OR uuid=?)
+
             ORDER BY
                 CASE statut
                     WHEN 'ACTIVE' THEN 1
@@ -407,20 +394,28 @@ try{
         $stmt->execute([
             $assignmentId,
             $date,
-            $date
+            $date,
+            $rotationUuid,
+            $rotationUuid
         ]);
 
-        $rotationId=
-            $stmt->fetchColumn();
-
-        $rotationId=
-            $rotationId!==false
-                ?(int)$rotationId
-                :null;
+        $rotation=$stmt->fetch(PDO::FETCH_ASSOC);
+        $rotationId=$rotation?(int)$rotation['id']:null;
     }
 
     if(isset($entryColumns['rotation_id'])&&!$rotationId){
-        throw new RuntimeException('Aucune rotation ne correspond a cette date.');
+        throw new StageLogbookValidationException(
+            'Cette rotation n’est pas disponible pour le journal.'
+        );
+    }
+
+    if(isset($entryColumns['rotation_id'])){
+        $date=stageLogbookValidateRotationDate(
+            $date,
+            $rotation['date_debut'],
+            $rotation['date_fin'],
+            $rotation['statut']
+        );
     }
 
 
@@ -463,6 +458,15 @@ try{
             );
         }
 
+        stageLogbookEnsureNoDuplicate(
+            $pdo,
+            $studentId,
+            (int)$rotationId,
+            $date,
+            (int)$entry['id'],
+            true
+        );
+
 
     }else{
 
@@ -471,26 +475,13 @@ try{
          * pour le même stage et le même jour.
          */
 
-        $stmt=$pdo->prepare("
-            SELECT *
-
-            FROM stage_logbook_entries
-
-            WHERE assignment_id=?
-              AND `$dateColumn`=?
-
-            LIMIT 1
-
-            FOR UPDATE
-        ");
-
-        $stmt->execute([
-            $assignmentId,
-            $date
-        ]);
-
-        $entry=$stmt->fetch(
-            PDO::FETCH_ASSOC
+        stageLogbookEnsureNoDuplicate(
+            $pdo,
+            $studentId,
+            (int)$rotationId,
+            $date,
+            0,
+            true
         );
     }
 
@@ -523,7 +514,7 @@ try{
             )
         ){
 
-            throw new RuntimeException(
+            throw new StageLogbookValidationException(
                 'Ce journal a déjà été soumis et ne peut plus être modifié.'
             );
         }
@@ -592,6 +583,16 @@ try{
         if(isset($entryColumns['submitted_at'])){
 
             $sets[]="submitted_at=NULL";
+        }
+
+        foreach([
+            'commentaire_encadreur',
+            'validated_at',
+            'validated_by'
+        ] as $resetColumn){
+            if(isset($entryColumns[$resetColumn])){
+                $sets[]="`$resetColumn`=NULL";
+            }
         }
 
 
@@ -1023,10 +1024,35 @@ try{
 
     apiResponse(
         true,
-        'Journal enregistré en brouillon.',
+        $isUpdate?'Journal mis à jour.':'Brouillon du journal enregistré.',
         ['entry'=>$entry]
     );
 
+
+}catch(StageLogbookValidationException $e){
+
+    if($pdo->inTransaction()){
+        $pdo->rollBack();
+    }
+
+    apiResponse(false,$e->getMessage(),[],422);
+
+}catch(PDOException $e){
+
+    if($pdo->inTransaction()){
+        $pdo->rollBack();
+    }
+
+    if(stageLogbookIsDuplicateError($e)){
+        apiResponse(
+            false,
+            'Une entrée de journal existe déjà pour cette rotation à cette date.',
+            [],
+            422
+        );
+    }
+
+    apiResponse(false,'Erreur lors de l’enregistrement du journal.',[],500);
 
 }catch(Throwable $e){
 
@@ -1042,29 +1068,3 @@ try{
         409
     );
 }
-
-if($summary===''){
-    apiResponse(false,'Le resume des activites est obligatoire.',[],422);
-}
-
-$allowedActivityTypes=['OBSERVATION','PARTICIPATION','REALISATION','GARDE','CONSULTATION','AUTRE'];
-$allowedInvolvement=['','OBSERVE','ASSISTE','REALISE_SUPERVISE','REALISE_AUTONOME'];
-$normalizedActivities=[];
-foreach($activities as $activity){
-    if(!is_array($activity))apiResponse(false,'Une activite est invalide.',[],422);
-    $category=strtoupper(trim((string)($activity['category']??$activity['type_activite']??'PARTICIPATION')));
-    $label=trim((string)($activity['activity']??$activity['intitule']??''));
-    $level=strtoupper(trim((string)($activity['involvement_level']??$activity['niveau_implication']??'')));
-    if(!in_array($category,$allowedActivityTypes,true))apiResponse(false,"Type d'activite invalide.",[],422);
-    if($label==='')apiResponse(false,"L'intitule de chaque activite est obligatoire.",[],422);
-    if(!in_array($level,$allowedInvolvement,true))apiResponse(false,"Niveau d'implication invalide.",[],422);
-    $normalizedActivities[]=[
-        'category'=>$category,
-        'activity'=>$label,
-        'description'=>trim((string)($activity['description']??'')),
-        'involvement_level'=>$level,
-        'quantity'=>max(1,(int)($activity['quantity']??$activity['quantite']??1)),
-        'observation'=>trim((string)($activity['observation']??''))
-    ];
-}
-$activities=$normalizedActivities;

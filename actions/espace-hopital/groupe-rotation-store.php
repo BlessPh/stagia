@@ -1,5 +1,5 @@
 <?php
-if(session_status()!==PHP_SESSION_ACTIVE)session_start();
+require_once __DIR__.'/../../includes/session-security.php';
 require_once __DIR__.'/../../config/database.php';
 require_once __DIR__.'/../../includes/stage-execution.php';
 require_once __DIR__.'/../../includes/auth.php';
@@ -164,5 +164,5 @@ try{
     if(isset($pdo)&&$pdo instanceof PDO&&$pdo->inTransaction())$pdo->rollBack();
     error_log('[GROUPE ROTATION STORE] '.$e->getMessage().' | '.$e->getFile().':'.$e->getLine());
     if(function_exists('jsonResponse'))jsonResponse(false,'Erreur : '.$e->getMessage(),[],500);
-    echo json_encode(['success'=>false,'message'=>'Erreur : '.$e->getMessage()]);
+    echo json_encode(['success'=>false,'message'=>'Une erreur technique est survenue. Veuillez reessayer plus tard.']);
 }

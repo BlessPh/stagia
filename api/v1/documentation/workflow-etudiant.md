@@ -55,8 +55,10 @@ Le workflow etudiant actuel couvre les etapes suivantes :
 
 8. Evaluation, notes et cloture
    - L'etudiant consulte ses evaluations de stage.
-   - Il consulte ses notes academiques.
-   - Lorsque le stage est valide, les attestations/certificats deviennent disponibles.
+   - Les mini-jurys alimentent une deliberation finale hospitaliere, source officielle de la note et de la decision.
+   - Le resultat est transmis puis valide par l'universite avant la cloture definitive.
+   - La note finale n'est exposee comme officielle qu'apres validation universitaire.
+   - Lorsque la cloture definitive est validee, les attestations/certificats deviennent disponibles.
 
 9. Documents
    - L'etudiant consulte ses conventions et documents officiels.
@@ -183,7 +185,7 @@ La création ou la modification réelle d'une affectation génère respectivemen
 |---|---|---|---|
 | GET | `/api/v1/student/attendance.php` | Liste les presences de l'etudiant. | `assignment_uuid` optionnel. |
 | GET | `/api/v1/student/logbook.php` | Liste le journal de stage et les activites. | `assignment_uuid` optionnel. |
-| POST | `/api/v1/student/logbook-save.php` | Cree/met a jour un brouillon de journal. | `assignment_uuid`, `date`, `summary`, `learning`, `difficulties`, `activities[]`, `uuid` optionnel. |
+| POST | `/api/v1/student/logbook-save.php` | Cree/met a jour un brouillon de journal, y compris en rattrapage. | `assignment_uuid`, `date`, `summary`, `learning`, `difficulties`, `activities[]`; `rotation_uuid` et `uuid` optionnels. La date doit appartenir a une rotation active ou terminee, ne pas etre future et ne pas deja avoir un journal. |
 | POST | `/api/v1/student/logbook-submit.php` | Soumet un journal brouillon pour validation. | `uuid`. |
 | GET | `/api/v1/student/evaluations.php` | Liste les evaluations validees. | `assignment_uuid` optionnel. |
 
